@@ -1,6 +1,46 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
+function normalizePostgresUrl(value: string | undefined): string | undefined {
+  if (!value) return value;
+
+  const schemeMatch = value.match(/^(postgres(?:ql)?:\/\/)/i);
+  if (!schemeMatch) return value;
+
+  const scheme = schemeMatch[1];
+  const authorityStart = scheme.length;
+  const authorityEnd = value.indexOf("/", authorityStart);
+  const safeAuthorityEnd = authorityEnd === -1 ? value.length : authorityEnd;
+  const authority = value.slice(authorityStart, safeAuthorityEnd);
+  const atIndex = authority.lastIndexOf("@");
+  if (atIndex === -1) return value;
+
+  const userInfo = authority.slice(0, atIndex);
+  const hostInfo = authority.slice(atIndex + 1);
+  const userSeparator = userInfo.indexOf(":");
+  if (userSeparator === -1) return value;
+
+  const username = userInfo.slice(0, userSeparator);
+  let rawPassword = userInfo.slice(userSeparator + 1);
+
+  if (rawPassword.startsWith("[") && rawPassword.endsWith("]")) {
+    rawPassword = rawPassword.slice(1, -1);
+  }
+
+  let encodedPassword: string;
+  try {
+    encodedPassword = encodeURIComponent(decodeURIComponent(rawPassword));
+  } catch {
+    encodedPassword = encodeURIComponent(rawPassword);
+  }
+
+  const suffix = value.slice(safeAuthorityEnd);
+  return `${scheme}${username}:${encodedPassword}@${hostInfo}${suffix}`;
+}
+
+process.env.DATABASE_URL = normalizePostgresUrl(process.env.DATABASE_URL);
+process.env.DIRECT_URL = normalizePostgresUrl(process.env.DIRECT_URL);
+
 const prisma = new PrismaClient();
 
 const corePermissions = [

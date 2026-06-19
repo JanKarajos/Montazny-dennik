@@ -4,6 +4,7 @@ import { Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getUserFacingError } from "@/lib/client-error";
 
 type ProjectItem = {
   id: string;
@@ -70,7 +71,7 @@ export function DashboardClient({ projects, canCreateProject }: Props) {
       setOpenModal(false);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Nepodarilo sa vytvoriť zákazku.");
+      setError(getUserFacingError(e, "Nepodarilo sa vytvoriť zákazku."));
     } finally {
       setSaving(false);
     }

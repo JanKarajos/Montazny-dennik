@@ -3,6 +3,7 @@
 import { Download, Pencil, Printer, PlusCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { getUserFacingError } from "@/lib/client-error";
 
 type LogRow = {
   id: string;
@@ -107,7 +108,7 @@ export function ProjectDetailClient({ projectId, projectName, projectNumber, can
       setDescription("");
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Nepodarilo sa pridať záznam.");
+      setError(getUserFacingError(e, "Nepodarilo sa pridať záznam."));
     } finally {
       setSaving(false);
     }
@@ -141,7 +142,7 @@ export function ProjectDetailClient({ projectId, projectName, projectNumber, can
       setEditOpen(false);
       router.refresh();
     } catch (e) {
-      setEditError(e instanceof Error ? e.message : "Nepodarilo sa upraviť zákazku.");
+      setEditError(getUserFacingError(e, "Nepodarilo sa upraviť zákazku."));
     } finally {
       setEditing(false);
     }

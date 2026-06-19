@@ -15,11 +15,11 @@
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",
+    "@supabase/server": "^1.1.0",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.3",
     "lucide-react": "^1.21.0",
     "next": "16.2.9",
-    "prisma": "^6.16.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zod": "^4.4.3"
@@ -32,6 +32,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "prisma": "^6.16.0",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"

@@ -3,6 +3,7 @@
 import { Building2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { getUserFacingError } from "@/lib/client-error";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function LoginPage() {
       router.push("/");
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Prihlásenie zlyhalo.");
+      setError(getUserFacingError(e, "Prihlásenie zlyhalo."));
     } finally {
       setLoading(false);
     }

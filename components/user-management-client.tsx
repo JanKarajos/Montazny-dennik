@@ -3,6 +3,7 @@
 import { Shield, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { getUserFacingError } from "@/lib/client-error";
 import type { PermissionCode, PermissionItem } from "@/lib/permissions";
 
 type UserRow = {
@@ -85,7 +86,7 @@ export function UserManagementClient({ users, roles, availablePermissions }: Pro
       setPassword("");
       router.refresh();
     } catch (error) {
-      setUserError(error instanceof Error ? error.message : "Nepodarilo sa vytvoriť používateľa.");
+      setUserError(getUserFacingError(error, "Nepodarilo sa vytvoriť používateľa."));
     } finally {
       setSavingUser(false);
     }
@@ -122,7 +123,7 @@ export function UserManagementClient({ users, roles, availablePermissions }: Pro
       setNewRoleName("");
       setNewRolePermissionCodes([]);
     } catch (error) {
-      setRoleError(error instanceof Error ? error.message : "Nepodarilo sa vytvoriť rolu.");
+      setRoleError(getUserFacingError(error, "Nepodarilo sa vytvoriť rolu."));
     } finally {
       setSavingRole(false);
     }
@@ -173,7 +174,7 @@ export function UserManagementClient({ users, roles, availablePermissions }: Pro
       );
     } catch (error) {
       setLocalUsers(previousUsers);
-      setPermissionError(error instanceof Error ? error.message : "Nepodarilo sa uložiť oprávnenie.");
+      setPermissionError(getUserFacingError(error, "Nepodarilo sa uložiť oprávnenie."));
     } finally {
       setActivePermissionChangeKey(null);
     }
