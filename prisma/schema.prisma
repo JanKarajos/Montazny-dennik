@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id          String       @id @default(uuid()) @db.Uuid
+  email       String       @unique
+  password    String
+  name        String
+  roleId      String       @db.Uuid
+  role        Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  permissions Permission[] @relation("UserPermissions")
+  createdAt   DateTime     @default(now())
+  workLogs    WorkLog[]
+}
+
+model Role {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @unique
+  createdAt   DateTime     @default(now())
+  users       User[]
+  permissions Permission[] @relation("RolePermissions")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  description String
+  createdAt   DateTime @default(now())
+  roles       Role[]   @relation("RolePermissions")
+  users       User[]   @relation("UserPermissions")
+}
+
+model Project {
+  id            String    @id @default(uuid()) @db.Uuid
+  projectNumber String    @unique
+  name          String
+  createdAt     DateTime  @default(now())
+  workLogs      WorkLog[]
+}
+
+model WorkLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  projectId         String   @db.Uuid
+  userId            String   @db.Uuid
+  description       String
+  date              DateTime
+  startTime         DateTime
+  endTime           DateTime
+  durationInMinutes Int
+  createdAt         DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, date])
+  @@index([userId])
+}
