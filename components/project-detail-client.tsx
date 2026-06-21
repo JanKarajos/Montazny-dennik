@@ -662,7 +662,7 @@ export function ProjectDetailClient({
       autoTable(doc, {
         startY: 218,
         margin: { left: 24, right: 24, bottom: 170 },
-        head: [["Dátum", "Pracovník", "Čas (Od - Do)", "Trvanie", "Popis práce"]],
+        head: [["Dátum", "Pracovník", "Od - Do", "Trvanie", "Popis práce"]],
         body: logs.map((log) => [
           formatDate(log.date),
           log.authorName,
