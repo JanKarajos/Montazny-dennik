@@ -1,4 +1,4 @@
-# Montážny Denník
+# MANEX Montážny Denník
 
 Produkčná webová aplikácia pre evidenciu montážnych prác (Next.js App Router, Tailwind CSS, Lucide React, Prisma, PostgreSQL).
 
@@ -79,7 +79,7 @@ npm run prisma:seed
 
 ## Predvolené seed konto
 
-- Email: `admin@firma.sk`
+- Email: `admin@manex.sk`
 - Heslo: `admin123`
 
 Po prvom prihlásení heslo okamžite zmeňte.

@@ -14,8 +14,8 @@ const bodyFont = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "Montážny Denník",
-  description: "Firemná aplikácia pre evidenciu montážnych prác",
+  title: "MANEX - Montážny Denník",
+  description: "Podniková aplikácia MANEX s.r.o. pre evidenciu montážnych prác",
 };
 
 export default function RootLayout({

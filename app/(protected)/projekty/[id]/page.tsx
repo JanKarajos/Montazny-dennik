@@ -37,16 +37,26 @@ export default async function ProjectDetailPage({ params }: Props) {
         projectId={project.id}
         projectName={project.name}
         projectNumber={project.projectNumber}
+        currentUserId={user.id}
         canEditProject={hasPermission(user, "EDIT_PROJECT")}
+        canDeleteProject={hasPermission(user, "DELETE_PROJECT")}
         canAddLogs={hasPermission(user, "ADD_LOGS")}
+        canManageAllLogs={hasPermission(user, "MANAGE_ALL_LOGS")}
+        canUnlockProject={hasPermission(user, "UNLOCK_PROJECT")}
+        employeeSignature={project.employeeSignature}
+        employeeSignedAt={project.employeeSignedAt?.toISOString() ?? null}
+        customerSignature={project.customerSignature}
+        customerSignedAt={project.customerSignedAt?.toISOString() ?? null}
+        isLocked={Boolean(project.employeeSignedAt && project.customerSignedAt)}
         logs={project.workLogs.map((log) => ({
           id: log.id,
+          authorId: log.userId,
           date: log.date.toISOString(),
           startTime: log.startTime.toISOString(),
           endTime: log.endTime.toISOString(),
           durationInMinutes: log.durationInMinutes,
           description: log.description,
-          authorName: log.user.name,
+          authorName: log.user?.name ?? "Bývalý zamestnanec",
         }))}
       />
     </section>

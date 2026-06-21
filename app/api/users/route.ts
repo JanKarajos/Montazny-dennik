@@ -7,7 +7,6 @@ import { prisma } from "@/lib/prisma";
 const userCreateSchema = z.object({
   name: z.string().min(2, "Meno je povinné."),
   email: z.string().email("Neplatný email."),
-  password: z.string().min(6, "Heslo musí mať aspoň 6 znakov."),
   roleId: z.string().min(1, "Rola je povinná."),
 });
 
@@ -45,13 +44,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Zvolená rola neexistuje." }, { status: 400 });
     }
 
-    const password = await hashPassword(parsed.data.password);
+    const temporaryPassword = "technik123";
+    const password = await hashPassword(temporaryPassword);
 
     const user = await prisma.user.create({
       data: {
         name: parsed.data.name.trim(),
         email,
         password,
+        requiresPasswordChange: true,
         roleId: parsed.data.roleId,
         permissions: {
           connect: role.permissions.map((permission) => ({ id: permission.id })),
@@ -62,10 +63,32 @@ export async function POST(request: Request) {
         name: true,
         email: true,
         roleId: true,
+        role: {
+          select: {
+            name: true,
+          },
+        },
+        permissions: {
+          select: {
+            code: true,
+          },
+        },
       },
     });
 
-    return NextResponse.json(user, { status: 201 });
+    return NextResponse.json(
+      {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        roleId: user.roleId,
+        roleName: user.role?.name ?? "Bez role",
+        permissions: user.permissions.map((permission) => permission.code),
+        temporaryPassword,
+        requiresPasswordChange: true,
+      },
+      { status: 201 },
+    );
   } catch {
     return NextResponse.json({ message: "Nepodarilo sa vytvoriť používateľa." }, { status: 500 });
   }

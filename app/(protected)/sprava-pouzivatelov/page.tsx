@@ -1,10 +1,12 @@
 import { UserManagementClient } from "@/components/user-management-client";
 import { CORE_PERMISSIONS } from "@/lib/permissions";
+import { hasPermission } from "@/lib/guards";
 import { requireManageUsers } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
+import { isSystemRoleName } from "@/lib/system-roles";
 
 export default async function UserManagementPage() {
-  await requireManageUsers();
+  const user = await requireManageUsers();
 
   const [users, roles] = await Promise.all([
     prisma.user.findMany({
@@ -51,6 +53,7 @@ export default async function UserManagementPage() {
       </div>
 
       <UserManagementClient
+        canResetUserPasswords={hasPermission(user, "RESET_USER_PASSWORDS")}
         users={users.map((user) => ({
           id: user.id,
           name: user.name,
@@ -62,6 +65,7 @@ export default async function UserManagementPage() {
         roles={roles.map((role) => ({
           id: role.id,
           name: role.name,
+          isSystem: isSystemRoleName(role.name),
           permissions: role.permissions.map((permission) => permission.code),
         }))}
         availablePermissions={CORE_PERMISSIONS}

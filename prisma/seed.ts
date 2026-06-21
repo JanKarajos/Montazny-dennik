@@ -47,8 +47,12 @@ const corePermissions = [
   { code: "VIEW_PROJECTS", description: "Zobrazenie zákaziek" },
   { code: "CREATE_PROJECTS", description: "Vytváranie nových zákaziek" },
   { code: "EDIT_PROJECT", description: "Úprava čísla a názvu zákazky" },
+  { code: "DELETE_PROJECT", description: "Mazanie zákaziek" },
   { code: "ADD_LOGS", description: "Pridávanie záznamov prác" },
+  { code: "MANAGE_ALL_LOGS", description: "Správa všetkých záznamov prác" },
   { code: "MANAGE_USERS", description: "Správa používateľov a rolí" },
+  { code: "RESET_USER_PASSWORDS", description: "Zmena hesiel používateľov adminom" },
+  { code: "UNLOCK_PROJECT", description: "Odomknutie zákaziek a mazanie podpisov" },
 ] as const;
 
 function dateAt(date: string, time: string) {
@@ -63,11 +67,11 @@ async function ensurePermission(code: string, description: string) {
   });
 }
 
-async function ensureRole(name: string, permissionIds: string[]) {
+async function ensureRole(name: string, permissionIds: string[], isSystem = false) {
   const role = await prisma.role.upsert({
     where: { name },
-    update: {},
-    create: { name },
+    update: { isSystem },
+    create: { name, isSystem },
     select: { id: true },
   });
 
@@ -93,21 +97,23 @@ async function main() {
   const veduciMontazeRole = await ensureRole(
     "Vedúci montáže",
     permissions.map((permission) => permission.id),
+    true,
   );
 
   const technikRole = await ensureRole("Technik", [
     permissionsByCode.VIEW_PROJECTS.id,
     permissionsByCode.ADD_LOGS.id,
-  ]);
+  ], true);
 
   const adminPassword = await bcrypt.hash("admin123", 10);
   const monterPassword = await bcrypt.hash("monter123", 10);
 
   const admin = await prisma.user.upsert({
-    where: { email: "admin@firma.sk" },
+    where: { email: "admin@manex.sk" },
     update: {
       name: "Peter Admin",
       password: adminPassword,
+      requiresPasswordChange: false,
       roleId: veduciMontazeRole.id,
       permissions: {
         set: permissions.map((permission) => ({ id: permission.id })),
@@ -115,8 +121,9 @@ async function main() {
     },
     create: {
       name: "Peter Admin",
-      email: "admin@firma.sk",
+      email: "admin@manex.sk",
       password: adminPassword,
+      requiresPasswordChange: false,
       roleId: veduciMontazeRole.id,
       permissions: {
         connect: permissions.map((permission) => ({ id: permission.id })),
@@ -125,10 +132,11 @@ async function main() {
   });
 
   const monter = await prisma.user.upsert({
-    where: { email: "monter@firma.sk" },
+    where: { email: "monter@manex.sk" },
     update: {
       name: "Jozef Monter",
       password: monterPassword,
+      requiresPasswordChange: true,
       roleId: technikRole.id,
       permissions: {
         set: [{ id: permissionsByCode.VIEW_PROJECTS.id }, { id: permissionsByCode.ADD_LOGS.id }],
@@ -136,8 +144,9 @@ async function main() {
     },
     create: {
       name: "Jozef Monter",
-      email: "monter@firma.sk",
+      email: "monter@manex.sk",
       password: monterPassword,
+      requiresPasswordChange: true,
       roleId: technikRole.id,
       permissions: {
         connect: [{ id: permissionsByCode.VIEW_PROJECTS.id }, { id: permissionsByCode.ADD_LOGS.id }],

@@ -14,9 +14,20 @@ export async function getSessionPermissionContext(): Promise<SessionPermissionCo
     return null;
   }
 
+  if (session.requiresPasswordChange) {
+    return null;
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
     include: {
+      role: {
+        select: {
+          permissions: {
+            select: { code: true },
+          },
+        },
+      },
       permissions: {
         select: { code: true },
       },
@@ -29,8 +40,12 @@ export async function getSessionPermissionContext(): Promise<SessionPermissionCo
 
   return {
     userId: user.id,
-    permissionCodes: user.permissions
-      .map((permission) => permission.code)
+    permissionCodes: Array.from(
+      new Set([
+        ...user.role.permissions.map((permission) => permission.code),
+        ...user.permissions.map((permission) => permission.code),
+      ]),
+    )
       .filter((code): code is PermissionCode => isPermissionCode(code)),
   };
 }

@@ -27,6 +27,7 @@ export default async function DashboardPage() {
 
       <DashboardClient
         canCreateProject={hasPermission(user, "CREATE_PROJECTS")}
+        canDeleteProject={hasPermission(user, "DELETE_PROJECT")}
         projects={projects.map((project) => ({
           ...project,
           createdAt: project.createdAt.toISOString(),

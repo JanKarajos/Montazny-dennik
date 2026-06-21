@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSessionPermissionContext, hasSessionPermission } from "@/lib/api-permissions";
 import { CORE_PERMISSION_CODES } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { isSystemRoleName } from "@/lib/system-roles";
 
 const createRoleSchema = z.object({
   name: z.string().min(2, "Názov role je povinný."),
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
       {
         id: role.id,
         name: role.name,
+        isSystem: isSystemRoleName(role.name),
         permissions: role.permissions.map((permission) => permission.code),
       },
       { status: 201 },

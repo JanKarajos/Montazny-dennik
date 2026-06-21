@@ -1,0 +1,5 @@
+ALTER TABLE "Project"
+  ADD COLUMN IF NOT EXISTS "employeeSignature" TEXT,
+  ADD COLUMN IF NOT EXISTS "employeeSignedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "customerSignature" TEXT,
+  ADD COLUMN IF NOT EXISTS "customerSignedAt" TIMESTAMP(3);

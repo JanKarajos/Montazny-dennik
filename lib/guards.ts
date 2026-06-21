@@ -17,6 +17,9 @@ export async function requireUser() {
         select: {
           id: true,
           name: true,
+          permissions: {
+            select: { code: true },
+          },
         },
       },
       permissions: {
@@ -29,8 +32,12 @@ export async function requireUser() {
     redirect("/login");
   }
 
-  const effectivePermissionCodes = user.permissions
-    .map((permission) => permission.code)
+  const effectivePermissionCodes = Array.from(
+    new Set([
+      ...user.role.permissions.map((permission) => permission.code),
+      ...user.permissions.map((permission) => permission.code),
+    ]),
+  )
     .filter((code): code is PermissionCode => isPermissionCode(code));
 
   return {
