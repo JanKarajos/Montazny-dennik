@@ -58,18 +58,37 @@ function formatDuration(minutes: number): string {
 }
 
 function formatDate(dateInput: string): string {
-  return new Date(dateInput).toLocaleDateString("sk-SK", {
+  const date = new Date(dateInput);
+  const formatter = new Intl.DateTimeFormat("sk-SK", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
     timeZone: "Europe/Bratislava",
   });
+  const parts = formatter.formatToParts(date);
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  return `${day}.${month}.${year}`;
 }
 
 function formatTime(dateInput: string): string {
-  return new Date(dateInput).toLocaleTimeString("sk-SK", {
+  const date = new Date(dateInput);
+  const formatter = new Intl.DateTimeFormat("sk-SK", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
     timeZone: "Europe/Bratislava",
   });
+  const parts = formatter.formatToParts(date);
+  const hour = parts.find((part) => part.type === "hour")?.value ?? "00";
+  const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
+  return `${hour}:${minute}`;
+}
+
+function formatDateTime(dateInput: string | Date): string {
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  return `${formatDate(date.toISOString())} ${formatTime(date.toISOString())}`;
 }
 
 function formatSignedAtFull(dateInput: string | null): string {
@@ -77,21 +96,7 @@ function formatSignedAtFull(dateInput: string | null): string {
     return "Nepodpísané";
   }
 
-  const date = new Date(dateInput);
-  const datePart = date.toLocaleDateString("sk-SK", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "Europe/Bratislava",
-  });
-  const timePart = date.toLocaleTimeString("sk-SK", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Europe/Bratislava",
-  });
-
-  return `Podpísané dňa: ${datePart} o ${timePart}`;
+  return `Podpísané dňa: ${formatDateTime(dateInput)}`;
 }
 
 function formatDateForInput(dateInput: string): string {
@@ -600,11 +605,7 @@ export function ProjectDetailClient({
 
       const fontBase64 = await getRobotoFontBase64();
       const logoDataUrl = await getLogoDataUrl();
-      const reportDate = new Intl.DateTimeFormat("sk-SK", {
-        dateStyle: "short",
-        timeStyle: "short",
-        timeZone: "Europe/Bratislava",
-      }).format(new Date());
+      const reportDate = formatDateTime(new Date());
       const totalMinutes = logs.reduce((sum, log) => sum + log.durationInMinutes, 0);
       const totalHours = (totalMinutes / 60).toFixed(2);
 
@@ -623,12 +624,13 @@ export function ProjectDetailClient({
 
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(13);
-      doc.text("MANEX s.r.o.", 124, 46);
+      doc.text("MANEX spol. s r.o.", 124, 46);
       doc.setTextColor(51, 65, 85);
       doc.setFontSize(9.5);
-      doc.text("Rastislavova 102, 040 01 Košice", 124, 61);
-      doc.text("E-mail: info@manex.sk", 124, 74);
-      doc.text("Web: www.manex.sk", 124, 87);
+      doc.text("Krátka 21, 044 14 Čaňa, Slovenská republika", 124, 61);
+      doc.text("tel.: +421 (55) 699 86 22", 124, 74);
+      doc.text("E-mail: manex@manex.sk", 124, 87);
+      doc.text("Web: www.manex.sk", 124, 100);
 
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(19);
@@ -789,13 +791,9 @@ export function ProjectDetailClient({
   }
 
   function handleExportCsv() {
-    const metadataHeader = `MANEX s.r.o. - Montážny denník pre zákazku: ${projectNumber} - ${projectName}`;
-    const metadataContact = "Rastislavova 102, 040 01 Košice | info@manex.sk | www.manex.sk";
-    const metadataGeneratedAt = `Dátum a čas generovania: ${new Intl.DateTimeFormat("sk-SK", {
-      dateStyle: "short",
-      timeStyle: "short",
-      timeZone: "Europe/Bratislava",
-    }).format(new Date())}`;
+    const metadataHeader = `MANEX spol. s r.o. - Montážny denník pre zákazku: ${projectNumber} - ${projectName}`;
+    const metadataContact = "MANEX spol. s r.o. | Krátka 21, 044 14 Čaňa | tel.: +421 (55) 699 86 22 | manex@manex.sk | www.manex.sk";
+    const metadataGeneratedAt = `Dátum a čas generovania: ${formatDateTime(new Date())}`;
     const header = ["Dátum", "Od", "Do", "Trvanie", "Popis práce", "Pracovník"];
 
     const rows = logs.map((log) => [
