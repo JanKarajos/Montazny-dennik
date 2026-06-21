@@ -72,7 +72,7 @@ export function MyProfileClient({ userName, userEmail }: Props) {
           <strong>Používateľ:</strong> {userName}
         </p>
         <p className="text-sm text-gray-700">
-          <strong>Email:</strong> {userEmail}
+          <strong>E-mail:</strong> {userEmail}
         </p>
       </div>
 

@@ -47,6 +47,7 @@ type Props = {
 };
 
 let robotoFontBase64Promise: Promise<string> | null = null;
+let logoDataUrlPromise: Promise<string> | null = null;
 
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -57,13 +58,17 @@ function formatDuration(minutes: number): string {
 }
 
 function formatDate(dateInput: string): string {
-  return new Date(dateInput).toLocaleDateString("sk-SK");
+  return new Date(dateInput).toLocaleDateString("sk-SK", {
+    timeZone: "Europe/Bratislava",
+  });
 }
 
 function formatTime(dateInput: string): string {
   return new Date(dateInput).toLocaleTimeString("sk-SK", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Bratislava",
   });
 }
 
@@ -77,11 +82,13 @@ function formatSignedAtFull(dateInput: string | null): string {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "Europe/Bratislava",
   });
   const timePart = date.toLocaleTimeString("sk-SK", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "Europe/Bratislava",
   });
 
   return `Podpísané dňa: ${datePart} o ${timePart}`;
@@ -96,6 +103,7 @@ function formatTimeForInput(dateInput: string): string {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
+    timeZone: "Europe/Bratislava",
   });
 }
 
@@ -133,6 +141,34 @@ async function getRobotoFontBase64(): Promise<string> {
   }
 
   return robotoFontBase64Promise;
+}
+
+async function getLogoDataUrl(): Promise<string> {
+  if (!logoDataUrlPromise) {
+    logoDataUrlPromise = fetch("/logo-manex.png")
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Nepodarilo sa načítať logo MANEX.");
+        }
+
+        const blob = await response.blob();
+        return new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result;
+            if (typeof result === "string") {
+              resolve(result);
+            } else {
+              reject(new Error("Nepodarilo sa spracovať logo MANEX."));
+            }
+          };
+          reader.onerror = () => reject(new Error("Nepodarilo sa spracovať logo MANEX."));
+          reader.readAsDataURL(blob);
+        });
+      });
+  }
+
+  return logoDataUrlPromise;
 }
 
 export function ProjectDetailClient({
@@ -563,7 +599,12 @@ export function ProjectDetailClient({
       const autoTable = autoTableModule.default;
 
       const fontBase64 = await getRobotoFontBase64();
-      const reportDate = new Date().toLocaleDateString("sk-SK");
+      const logoDataUrl = await getLogoDataUrl();
+      const reportDate = new Intl.DateTimeFormat("sk-SK", {
+        dateStyle: "short",
+        timeStyle: "short",
+        timeZone: "Europe/Bratislava",
+      }).format(new Date());
       const totalMinutes = logs.reduce((sum, log) => sum + log.durationInMinutes, 0);
       const totalHours = (totalMinutes / 60).toFixed(2);
 
@@ -578,20 +619,16 @@ export function ProjectDetailClient({
       doc.setFillColor(245, 246, 248);
       doc.rect(20, 20, pageWidth - 40, 124, "F");
 
-      doc.setFillColor(220, 38, 38);
-      doc.roundedRect(32, 34, 44, 44, 6, 6, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.text("M", 54, 63, { align: "center" });
+      doc.addImage(logoDataUrl, "PNG", 30, 32, 88, 44);
 
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(13);
-      doc.text("MANEX s.r.o.", 86, 46);
+      doc.text("MANEX s.r.o.", 124, 46);
       doc.setTextColor(51, 65, 85);
       doc.setFontSize(9.5);
-      doc.text("Rastislavova 102, 040 01 Košice, Slovenská republika", 86, 61);
-      doc.text("Web: www.manex.sk", 86, 74);
-      doc.text("Email: info@manex.sk", 86, 87);
+      doc.text("Rastislavova 102, 040 01 Košice", 124, 61);
+      doc.text("E-mail: info@manex.sk", 124, 74);
+      doc.text("Web: www.manex.sk", 124, 87);
 
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(19);
@@ -601,7 +638,7 @@ export function ProjectDetailClient({
       doc.setFontSize(10);
       doc.text(`Číslo zákazky: ${projectNumber}`, pageWidth - 34, 66, { align: "right" });
       doc.text(`Názov zákazky: ${projectName}`, pageWidth - 34, 80, { align: "right", maxWidth: 230 });
-      doc.text(`Dátum generovania: ${reportDate}`, pageWidth - 34, 108, { align: "right" });
+      doc.text(`Dátum a čas generovania: ${reportDate}`, pageWidth - 34, 108, { align: "right" });
 
       doc.setDrawColor(220, 38, 38);
       doc.setLineWidth(2);
@@ -753,6 +790,12 @@ export function ProjectDetailClient({
 
   function handleExportCsv() {
     const metadataHeader = `MANEX s.r.o. - Montážny denník pre zákazku: ${projectNumber} - ${projectName}`;
+    const metadataContact = "Rastislavova 102, 040 01 Košice | info@manex.sk | www.manex.sk";
+    const metadataGeneratedAt = `Dátum a čas generovania: ${new Intl.DateTimeFormat("sk-SK", {
+      dateStyle: "short",
+      timeStyle: "short",
+      timeZone: "Europe/Bratislava",
+    }).format(new Date())}`;
     const header = ["Dátum", "Od", "Do", "Trvanie", "Popis práce", "Pracovník"];
 
     const rows = logs.map((log) => [
@@ -764,7 +807,7 @@ export function ProjectDetailClient({
       log.authorName,
     ]);
 
-    const csvContent = [[metadataHeader], header, ...rows]
+    const csvContent = [[metadataHeader], [metadataContact], [metadataGeneratedAt], [], header, ...rows]
       .map((row) => row.map((cell) => csvEscape(cell)).join(";"))
       .join("\n");
 

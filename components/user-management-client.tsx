@@ -411,7 +411,7 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
           </label>
 
           <label className="text-sm font-medium text-gray-700">
-            Email
+            E-mail
             <input
               type="email"
               value={email}
@@ -517,7 +517,7 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
             <thead className="bg-gray-100 text-left text-gray-700">
               <tr>
                 <th className="px-3 py-2 font-semibold">Meno</th>
-                <th className="px-3 py-2 font-semibold">Email</th>
+                <th className="px-3 py-2 font-semibold">E-mail</th>
                 <th className="px-3 py-2 font-semibold">Rola</th>
                 <th className="px-3 py-2 font-semibold">Oprávnenia</th>
                 <th className="px-3 py-2 font-semibold text-right">Akcie</th>
@@ -672,7 +672,7 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
                   />
                 </label>
                 <label className="block text-sm font-medium text-gray-700">
-                  Email
+                  E-mail
                   <input
                     type="email"
                     value={editUserEmail}

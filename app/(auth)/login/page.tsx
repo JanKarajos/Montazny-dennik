@@ -53,7 +53,7 @@ export default function LoginPage() {
 
           <form onSubmit={onSubmit} className="space-y-4">
             <label className="block text-sm font-medium text-gray-700">
-              Email
+              E-mail
               <input
                 type="email"
                 required

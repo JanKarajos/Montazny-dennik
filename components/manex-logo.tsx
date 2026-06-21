@@ -11,7 +11,7 @@ export function ManexLogo({ compact = false }: ManexLogoProps) {
       <div className="inline-flex items-center gap-2.5 rounded-lg bg-white px-2.5 py-1.5 shadow-sm ring-1 ring-gray-200">
         <img
           src="/logo-manex.png"
-          alt="MANEX logo"
+          alt="Logo MANEX"
           width={compactIconWidth}
           height={compactIconHeight}
           className="h-[50px] w-auto object-contain"
@@ -27,7 +27,7 @@ export function ManexLogo({ compact = false }: ManexLogoProps) {
       <div className="flex items-center justify-center overflow-hidden rounded-lg bg-white px-2 py-1 shadow-sm ring-1 ring-gray-200">
         <img
           src="/logo-manex.png"
-          alt="MANEX logo"
+          alt="Logo MANEX"
           width={110}
           height={55}
           className="h-auto w-auto object-contain"
@@ -36,7 +36,7 @@ export function ManexLogo({ compact = false }: ManexLogoProps) {
       </div>
       <div className="leading-tight">
         <p className="text-base font-bold text-slate-900">MANEX - Montážny denník</p>
-        <p className="text-xl text-gray-600">Firemný systém montážnych protokolov</p>
+        <p className="text-xl text-gray-600">Firemný systém montážnych denníkov</p>
       </div>
     </div>
   );
