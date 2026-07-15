@@ -11,7 +11,10 @@ type ProjectItem = {
   projectNumber: string;
   name: string;
   createdAt: string;
+  isCompleted: boolean;
 };
+
+type StatusFilter = "active" | "completed";
 
 type Props = {
   projects: ProjectItem[];
@@ -22,6 +25,7 @@ type Props = {
 export function DashboardClient({ projects, canCreateProject, canDeleteProject }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [openModal, setOpenModal] = useState(false);
   const [projectNumber, setProjectNumber] = useState("");
   const [projectName, setProjectName] = useState("");
@@ -34,17 +38,26 @@ export function DashboardClient({ projects, canCreateProject, canDeleteProject }
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) {
-      return projects;
-    }
 
     return projects.filter((project) => {
+      const matchesStatus = statusFilter === "active" ? !project.isCompleted : project.isCompleted;
+      if (!matchesStatus) {
+        return false;
+      }
+
+      if (!normalized) {
+        return true;
+      }
+
       return (
         project.projectNumber.toLowerCase().includes(normalized) ||
         project.name.toLowerCase().includes(normalized)
       );
     });
-  }, [projects, query]);
+  }, [projects, query, statusFilter]);
+
+  const activeCount = useMemo(() => projects.filter((project) => !project.isCompleted).length, [projects]);
+  const completedCount = useMemo(() => projects.filter((project) => project.isCompleted).length, [projects]);
 
   async function handleCreateProject(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -145,6 +158,31 @@ export function DashboardClient({ projects, canCreateProject, canDeleteProject }
         ) : null}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 print:hidden">
+        <button
+          type="button"
+          onClick={() => setStatusFilter("active")}
+          className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+            statusFilter === "active"
+              ? "border border-emerald-300 bg-emerald-100 text-emerald-800"
+              : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+          }`}
+        >
+          Aktívne ({activeCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter("completed")}
+          className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+            statusFilter === "completed"
+              ? "border border-slate-300 bg-slate-200 text-slate-800"
+              : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+          }`}
+        >
+          Ukončené ({completedCount})
+        </button>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((project) => (
           <article
@@ -156,6 +194,13 @@ export function DashboardClient({ projects, canCreateProject, canDeleteProject }
               <p className="mt-1 line-clamp-2 text-lg font-bold text-slate-900 group-hover:text-red-700">
                 {project.projectNumber} - {project.name}
               </p>
+              <span
+                className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  project.isCompleted ? "bg-slate-200 text-slate-700" : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                {project.isCompleted ? "Ukončená" : "Aktívna"}
+              </span>
             </Link>
 
             {canDeleteProject ? (
@@ -180,7 +225,9 @@ export function DashboardClient({ projects, canCreateProject, canDeleteProject }
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-600">
-          Nenašli sa žiadne zákazky pre zadaný výraz.
+          {statusFilter === "active"
+            ? "Nenašli sa žiadne aktívne zákazky pre zadaný výraz."
+            : "Nenašli sa žiadne ukončené zákazky pre zadaný výraz."}
         </div>
       ) : null}
 

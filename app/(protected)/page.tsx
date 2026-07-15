@@ -13,6 +13,8 @@ export default async function DashboardPage() {
       projectNumber: true,
       name: true,
       createdAt: true,
+      employeeSignedAt: true,
+      customerSignedAt: true,
     },
   });
 
@@ -21,7 +23,7 @@ export default async function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Zákazky</h1>
         <p className="text-sm text-gray-600">
-          Prehľad aktívnych zákaziek. Vyberte projekt pre detail denníka prác.
+          Prehľad zákaziek s filtrovaním na aktívne a ukončené.
         </p>
       </div>
 
@@ -31,6 +33,7 @@ export default async function DashboardPage() {
         projects={projects.map((project) => ({
           ...project,
           createdAt: project.createdAt.toISOString(),
+          isCompleted: Boolean(project.employeeSignedAt && project.customerSignedAt),
         }))}
       />
     </section>
