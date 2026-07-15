@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionPermissionContext, hasSessionPermission } from "@/lib/api-permissions";
 import { prisma } from "@/lib/prisma";
-import { isValidTimeRange, parseDateAndTime } from "@/lib/time";
+import { isValidTimeRange, parseDateAndTime, parseDateOnly } from "@/lib/time";
 
 const updateLogSchema = z.object({
   date: z.string().min(1, "Dátum je povinný."),
@@ -82,7 +82,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const durationInMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
-    const dateOnly = new Date(`${parsed.data.date}T00:00:00`);
+    const dateOnly = parseDateOnly(parsed.data.date);
 
     const updated = await prisma.workLog.update({
       where: { id },
