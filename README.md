@@ -10,6 +10,7 @@ Produkčná webová aplikácia pre evidenciu montážnych prác (Next.js App Rou
 - Zákazky vo formáte `Číslo zákazky - Názov zákazky`.
 - Vyhľadávanie zákaziek podľa čísla aj názvu.
 - Detail zákazky s časovými záznamami prác.
+- Servisný denník (`/servis`) so samostatnými servisnými zákazkami – rovnaké funkcie ako montážny denník (záznamy prác, podpisy zamestnanca a zákazníka, uzamknutie, PDF protokol, CSV export, tlač).
 - Inline úprava zákazky pri oprávnení `EDIT_PROJECT`.
 - Export do CSV (UTF-8 s BOM) a tlač denníka.
 

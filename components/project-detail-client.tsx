@@ -14,6 +14,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getUserFacingError } from "@/lib/client-error";
+import { DIARY_CONFIG, DiaryTypeCode } from "@/lib/diary-types";
 
 type LogRow = {
   id: string;
@@ -29,6 +30,7 @@ type LogRow = {
 type SignatureParty = "employee" | "customer";
 
 type Props = {
+  diaryType: DiaryTypeCode;
   projectId: string;
   projectName: string;
   projectNumber: string;
@@ -177,6 +179,7 @@ async function getLogoDataUrl(): Promise<string> {
 }
 
 export function ProjectDetailClient({
+  diaryType,
   projectId,
   projectName,
   projectNumber,
@@ -194,6 +197,7 @@ export function ProjectDetailClient({
   logs,
 }: Props) {
   const router = useRouter();
+  const config = DIARY_CONFIG[diaryType];
 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState("07:00");
@@ -510,7 +514,7 @@ export function ProjectDetailClient({
         throw new Error(payload.message ?? "Nepodarilo sa vymazať zákazku.");
       }
 
-      router.push("/");
+      router.push(config.listPath);
       router.refresh();
     } catch (e) {
       setDeleteError(getUserFacingError(e, "Nepodarilo sa vymazať zákazku."));
@@ -634,7 +638,7 @@ export function ProjectDetailClient({
 
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(19);
-      doc.text("MONTÁŽNY PROTOKOL", pageWidth - 34, 48, { align: "right" });
+      doc.text(config.pdfTitle, pageWidth - 34, 48, { align: "right" });
 
       doc.setTextColor(71, 85, 105);
       doc.setFontSize(10);
@@ -749,7 +753,7 @@ export function ProjectDetailClient({
         });
       }
 
-      doc.save(`montazny-dennik-${projectNumber}.pdf`);
+      doc.save(`${config.fileSlug}-${projectNumber}.pdf`);
     } catch (e) {
       setError(getUserFacingError(e, "PDF report sa nepodarilo vygenerovať."));
     }
@@ -791,7 +795,7 @@ export function ProjectDetailClient({
   }
 
   function handleExportCsv() {
-    const metadataHeader = `MANEX spol. s r.o. - Montážny denník pre zákazku: ${projectNumber} - ${projectName}`;
+    const metadataHeader = `MANEX spol. s r.o. - ${config.diaryName} pre zákazku: ${projectNumber} - ${projectName}`;
     const metadataContact = "MANEX spol. s r.o. | Krátka 21, 044 14 Čaňa | tel.: +421 (55) 699 86 22 | manex@manex.sk | www.manex.sk";
     const metadataGeneratedAt = `Dátum a čas generovania: ${formatDateTime(new Date())}`;
     const header = ["Dátum", "Od", "Do", "Trvanie", "Popis práce", "Pracovník"];
@@ -815,7 +819,7 @@ export function ProjectDetailClient({
 
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `montazny-dennik-${projectNumber}.csv`;
+    anchor.download = `${config.fileSlug}-${projectNumber}.csv`;
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
@@ -826,7 +830,7 @@ export function ProjectDetailClient({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-red-700">Zákazka</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-red-700">{config.itemLabel}</p>
           <h1 className="text-2xl font-bold text-slate-900">
             {projectNumber} - {projectName}
           </h1>
@@ -992,7 +996,7 @@ export function ProjectDetailClient({
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm print:shadow-none print:border-0">
         <div className="border-b border-gray-200 bg-slate-900 px-4 py-3 text-white print:bg-white print:text-black">
-          <h2 className="text-lg font-bold">Denník prác</h2>
+          <h2 className="text-lg font-bold">{diaryType === "SERVICE" ? "Denník servisných prác" : "Denník prác"}</h2>
           <p className="text-sm text-gray-200 print:text-gray-700">
             {projectNumber} - {projectName}
           </p>

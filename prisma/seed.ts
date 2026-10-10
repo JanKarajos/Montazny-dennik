@@ -155,20 +155,24 @@ async function main() {
   });
 
   const sampleProjects = [
-    { projectNumber: "334", name: "Montáž linky A" },
-    { projectNumber: "335", name: "Modernizácia rozvádzača B" },
-    { projectNumber: "336", name: "Servis robotickej bunky C" },
-  ];
+    { type: "ASSEMBLY", projectNumber: "334", name: "Montáž linky A" },
+    { type: "ASSEMBLY", projectNumber: "335", name: "Modernizácia rozvádzača B" },
+    { type: "ASSEMBLY", projectNumber: "336", name: "Servis robotickej bunky C" },
+    { type: "SERVICE", projectNumber: "S-101", name: "Pravidelný servis linky A" },
+  ] as const;
 
   for (const project of sampleProjects) {
     await prisma.project.upsert({
-      where: { projectNumber: project.projectNumber },
+      where: { type_projectNumber: { type: project.type, projectNumber: project.projectNumber } },
       update: { name: project.name },
       create: project,
     });
   }
 
-  const project334 = await prisma.project.findUnique({ where: { projectNumber: "334" }, select: { id: true } });
+  const project334 = await prisma.project.findUnique({
+    where: { type_projectNumber: { type: "ASSEMBLY", projectNumber: "334" } },
+    select: { id: true },
+  });
 
   if (project334) {
     const existingLogs = await prisma.workLog.count({ where: { projectId: project334.id } });
