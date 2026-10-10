@@ -48,8 +48,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         userId: true,
         project: {
           select: {
-            employeeSignedAt: true,
-            customerSignedAt: true,
+            completedAt: true,
           },
         },
       },
@@ -59,8 +58,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ message: "Záznam práce neexistuje." }, { status: 404 });
     }
 
-    if (existing.project.employeeSignedAt && existing.project.customerSignedAt) {
-      return NextResponse.json({ message: "Zákazka je po podpise uzamknutá." }, { status: 409 });
+    if (existing.project.completedAt) {
+      return NextResponse.json({ message: "Zákazka je ukončená a uzamknutá." }, { status: 409 });
     }
 
     const hasManageAllLogs = hasSessionPermission(permissionContext, "MANAGE_ALL_LOGS");
@@ -120,8 +119,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
         userId: true,
         project: {
           select: {
-            employeeSignedAt: true,
-            customerSignedAt: true,
+            completedAt: true,
           },
         },
       },
@@ -131,8 +129,8 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ message: "Záznam práce neexistuje." }, { status: 404 });
     }
 
-    if (existing.project.employeeSignedAt && existing.project.customerSignedAt) {
-      return NextResponse.json({ message: "Zákazka je po podpise uzamknutá." }, { status: 409 });
+    if (existing.project.completedAt) {
+      return NextResponse.json({ message: "Zákazka je ukončená a uzamknutá." }, { status: 409 });
     }
 
     const hasManageAllLogs = hasSessionPermission(permissionContext, "MANAGE_ALL_LOGS");

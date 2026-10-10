@@ -8,7 +8,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { prisma } from "../lib/prisma";
 
-const MANAGED_MIGRATIONS = ["20261010120000_service_diary", "20261010130000_enable_rls"];
+const MANAGED_MIGRATIONS = [
+  "20261010120000_service_diary",
+  "20261010130000_enable_rls",
+  "20261011090000_project_completion",
+];
 
 function splitSqlStatements(sql: string): string[] {
   const statements: string[] = [];

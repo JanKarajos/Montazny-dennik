@@ -15,8 +15,7 @@ export async function DiaryListPage({ type }: { type: DiaryTypeCode }) {
       projectNumber: true,
       name: true,
       createdAt: true,
-      employeeSignedAt: true,
-      customerSignedAt: true,
+      completedAt: true,
     },
   });
 
@@ -37,7 +36,7 @@ export async function DiaryListPage({ type }: { type: DiaryTypeCode }) {
           projectNumber: project.projectNumber,
           name: project.name,
           createdAt: project.createdAt.toISOString(),
-          isCompleted: Boolean(project.employeeSignedAt && project.customerSignedAt),
+          isCompleted: project.completedAt !== null,
         }))}
       />
     </section>
