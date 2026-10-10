@@ -1,14 +1,14 @@
 -- Supabase sprístupňuje schému "public" cez PostgREST (anon / authenticated roly).
 -- Aplikácia pristupuje k databáze výhradne cez Prisma ako vlastník tabuliek,
 -- ktorý RLS obchádza, preto zapnutie RLS bez politík zablokuje iba verejné API.
-ALTER TABLE "User" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Role" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Permission" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Project" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "WorkLog" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "_RolePermissions" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "_UserPermissions" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "_prisma_migrations" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS "User" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS "Role" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS "Permission" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS "Project" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS "WorkLog" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS "_RolePermissions" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS "_UserPermissions" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS "_prisma_migrations" ENABLE ROW LEVEL SECURITY;
 
 -- Druhá vrstva ochrany: odobratie práv verejným Supabase rolám (ak existujú).
 DO $$
