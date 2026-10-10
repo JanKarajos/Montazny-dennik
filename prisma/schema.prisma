@@ -39,9 +39,15 @@ model Permission {
   users       User[]   @relation("UserPermissions")
 }
 
+enum DiaryType {
+  ASSEMBLY
+  SERVICE
+}
+
 model Project {
   id            String    @id @default(uuid()) @db.Uuid
-  projectNumber String    @unique
+  type          DiaryType @default(ASSEMBLY)
+  projectNumber String
   name          String
   createdAt     DateTime  @default(now())
   employeeSignature String?
@@ -49,6 +55,9 @@ model Project {
   customerSignature String?
   customerSignedAt  DateTime?
   workLogs      WorkLog[]
+
+  @@unique([type, projectNumber])
+  @@index([type, createdAt])
 }
 
 model WorkLog {

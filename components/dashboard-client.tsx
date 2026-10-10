@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getUserFacingError } from "@/lib/client-error";
+import { DIARY_CONFIG, DiaryTypeCode } from "@/lib/diary-types";
 
 type ProjectItem = {
   id: string;
@@ -17,13 +18,15 @@ type ProjectItem = {
 type StatusFilter = "active" | "completed";
 
 type Props = {
+  diaryType: DiaryTypeCode;
   projects: ProjectItem[];
   canCreateProject: boolean;
   canDeleteProject: boolean;
 };
 
-export function DashboardClient({ projects, canCreateProject, canDeleteProject }: Props) {
+export function DashboardClient({ diaryType, projects, canCreateProject, canDeleteProject }: Props) {
   const router = useRouter();
+  const config = DIARY_CONFIG[diaryType];
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [openModal, setOpenModal] = useState(false);
@@ -76,6 +79,7 @@ export function DashboardClient({ projects, canCreateProject, canDeleteProject }
         body: JSON.stringify({
           projectNumber: projectNumber.trim(),
           name: projectName.trim(),
+          type: diaryType,
         }),
       });
 
@@ -153,7 +157,7 @@ export function DashboardClient({ projects, canCreateProject, canDeleteProject }
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
           >
             <Plus size={16} />
-            Vytvoriť novú zákazku
+            {diaryType === "SERVICE" ? "Vytvoriť novú servisnú zákazku" : "Vytvoriť novú zákazku"}
           </button>
         ) : null}
       </div>
@@ -189,8 +193,8 @@ export function DashboardClient({ projects, canCreateProject, canDeleteProject }
             key={project.id}
             className="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-red-200 hover:shadow"
           >
-            <Link href={`/projekty/${project.id}`}>
-              <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">Zákazka</p>
+            <Link href={`${config.basePath}/${project.id}`}>
+              <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">{config.itemLabel}</p>
               <p className="mt-1 line-clamp-2 text-lg font-bold text-slate-900 group-hover:text-red-700">
                 {project.projectNumber} - {project.name}
               </p>
@@ -234,8 +238,10 @@ export function DashboardClient({ projects, canCreateProject, canDeleteProject }
       {openModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 print:hidden">
           <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
-            <h2 className="text-lg font-bold text-slate-900">Nová zákazka</h2>
-            <p className="mt-1 text-sm text-gray-600">Vytvorte novú zákazku pre montážny tím.</p>
+            <h2 className="text-lg font-bold text-slate-900">
+              {diaryType === "SERVICE" ? "Nová servisná zákazka" : "Nová zákazka"}
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">{config.createDescription}</p>
 
             <form onSubmit={handleCreateProject} className="mt-4 space-y-3">
               <label className="block text-sm font-medium text-gray-700">
@@ -244,7 +250,7 @@ export function DashboardClient({ projects, canCreateProject, canDeleteProject }
                   value={projectNumber}
                   onChange={(e) => setProjectNumber(e.target.value)}
                   className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-red-500 focus:ring"
-                  placeholder="Napr. ZA-2026-014"
+                  placeholder={config.createNumberPlaceholder}
                 />
               </label>
 
@@ -254,7 +260,7 @@ export function DashboardClient({ projects, canCreateProject, canDeleteProject }
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
                   className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-red-500 focus:ring"
-                  placeholder="Napr. Volkswagen - montáž linky"
+                  placeholder={config.createNamePlaceholder}
                 />
               </label>
 

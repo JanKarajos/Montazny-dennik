@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionPermissionContext, hasSessionPermission } from "@/lib/api-permissions";
-import { prisma } from "@/lib/prisma";
+import { isUniqueConstraintError, prisma } from "@/lib/prisma";
 
 const updateProjectSchema = z.object({
   projectNumber: z.string().min(1, "Číslo zákazky je povinné.").max(50),
@@ -57,7 +57,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
 
     return NextResponse.json(updated);
-  } catch {
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return NextResponse.json({ message: "Zákazka s týmto číslom už existuje." }, { status: 409 });
+    }
     return NextResponse.json({ message: "Nepodarilo sa uložiť zákazku." }, { status: 500 });
   }
 }

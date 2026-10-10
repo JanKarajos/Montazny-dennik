@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ClipboardList, ShieldCheck, UserRound } from "lucide-react";
+import { ClipboardList, ShieldCheck, UserRound, Wrench } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { ManexFooter } from "@/components/manex-footer";
 import { ManexLogo } from "@/components/manex-logo";
@@ -21,7 +21,15 @@ export default async function ProtectedLayout({ children }: { children: React.Re
               className="inline-flex items-center gap-2 rounded-md border border-slate-700 px-3 py-2 font-semibold text-gray-100 transition hover:border-red-500 hover:bg-slate-800"
             >
               <ClipboardList size={15} />
-              Zákazky
+              Montážny denník
+            </Link>
+
+            <Link
+              href="/servis"
+              className="inline-flex items-center gap-2 rounded-md border border-slate-700 px-3 py-2 font-semibold text-gray-100 transition hover:border-red-500 hover:bg-slate-800"
+            >
+              <Wrench size={15} />
+              Servisný denník
             </Link>
 
             <Link

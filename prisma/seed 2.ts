@@ -113,13 +113,13 @@ async function main() {
 
   for (const project of sampleProjects) {
     await prisma.project.upsert({
-      where: { projectNumber: project.projectNumber },
+      where: { type_projectNumber: { type: "ASSEMBLY", projectNumber: project.projectNumber } },
       update: { name: project.name },
       create: project,
     });
   }
 
-  const project334 = await prisma.project.findUnique({ where: { projectNumber: "334" }, select: { id: true } });
+  const project334 = await prisma.project.findUnique({ where: { type_projectNumber: { type: "ASSEMBLY", projectNumber: "334" } }, select: { id: true } });
 
   if (project334) {
     const existingLogs = await prisma.workLog.count({ where: { projectId: project334.id } });
