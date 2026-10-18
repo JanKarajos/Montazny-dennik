@@ -1,20 +1,25 @@
 "use client";
 
 import {
+  CheckCircle2,
   Download,
   FileDown,
+  FileSignature,
   LockOpen,
   Pencil,
   Printer,
   PlusCircle,
   Signature,
   Trash2,
+  Upload,
   UserCheck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getUserFacingError } from "@/lib/client-error";
+import { COMPLETION_METHOD_LABELS, CompletionMethodCode } from "@/lib/completion";
 import { DIARY_CONFIG, DiaryTypeCode } from "@/lib/diary-types";
+import { formatHoursDecimal, getDayKey, summarizeWorkTime } from "@/lib/work-time";
 
 type LogRow = {
   id: string;
@@ -29,6 +34,17 @@ type LogRow = {
 
 type SignatureParty = "employee" | "customer";
 
+type SignedProtocolInfo = {
+  fileName: string;
+  size: number;
+  uploadedAt: string;
+  uploadedByName: string | null;
+};
+
+type PdfMode = "report" | "paper";
+
+const MAX_PROTOCOL_SIZE = 4 * 1024 * 1024;
+
 type Props = {
   diaryType: DiaryTypeCode;
   projectId: string;
@@ -41,6 +57,11 @@ type Props = {
   canAddLogs: boolean;
   canManageAllLogs: boolean;
   canUnlockProject: boolean;
+  canCompleteProject: boolean;
+  completedAt: string | null;
+  completionMethod: CompletionMethodCode | null;
+  completedByName: string | null;
+  signedProtocol: SignedProtocolInfo | null;
   employeeSignature: string | null;
   employeeSignedAt: string | null;
   customerSignature: string | null;
@@ -102,7 +123,19 @@ function formatSignedAtFull(dateInput: string | null): string {
 }
 
 function formatDateForInput(dateInput: string): string {
-  return new Date(dateInput).toISOString().slice(0, 10);
+  return getDayKey(dateInput);
+}
+
+function formatDayKey(dayKey: string): string {
+  const [year, month, day] = dayKey.split("-");
+  return `${day}.${month}.${year}`;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} kB`;
+  }
+  return `${(bytes / (1024 * 1024)).toLocaleString("sk-SK", { maximumFractionDigits: 1 })} MB`;
 }
 
 function formatTimeForInput(dateInput: string): string {
@@ -190,6 +223,11 @@ export function ProjectDetailClient({
   canAddLogs,
   canManageAllLogs,
   canUnlockProject,
+  canCompleteProject,
+  completedAt,
+  completionMethod,
+  completedByName,
+  signedProtocol,
   employeeSignature,
   employeeSignedAt,
   customerSignature,
@@ -240,6 +278,18 @@ export function ProjectDetailClient({
   const [unlockModalOpen, setUnlockModalOpen] = useState(false);
   const [unlockingProject, setUnlockingProject] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [completingProject, setCompletingProject] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+
+  const [protocolFile, setProtocolFile] = useState<File | null>(null);
+  const [uploadingProtocol, setUploadingProtocol] = useState(false);
+  const [protocolError, setProtocolError] = useState<string | null>(null);
+  const protocolInputRef = useRef<HTMLInputElement | null>(null);
+
+  const workTime = useMemo(() => summarizeWorkTime(logs), [logs]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
@@ -599,7 +649,7 @@ export function ProjectDetailClient({
     }
   }
 
-  async function handleExportPdf() {
+  async function handleExportPdf(mode: PdfMode) {
     try {
       const [{ default: JsPdf }, autoTableModule] = await Promise.all([
         import("jspdf"),
@@ -610,8 +660,9 @@ export function ProjectDetailClient({
       const fontBase64 = await getRobotoFontBase64();
       const logoDataUrl = await getLogoDataUrl();
       const reportDate = formatDateTime(new Date());
-      const totalMinutes = logs.reduce((sum, log) => sum + log.durationInMinutes, 0);
-      const totalHours = (totalMinutes / 60).toFixed(2);
+      const sortedLogs = [...logs].sort(
+        (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+      );
 
       const doc = new JsPdf({ unit: "pt", format: "a4" });
       doc.addFileToVFS("Roboto.ttf", fontBase64);
@@ -620,6 +671,8 @@ export function ProjectDetailClient({
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
+      const getLastTableY = () =>
+        (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 0;
 
       doc.setFillColor(245, 246, 248);
       doc.rect(20, 20, pageWidth - 40, 124, "F");
@@ -643,8 +696,9 @@ export function ProjectDetailClient({
       doc.setTextColor(71, 85, 105);
       doc.setFontSize(10);
       doc.text(`Číslo zákazky: ${projectNumber}`, pageWidth - 34, 66, { align: "right" });
-      doc.text(`Názov zákazky: ${projectName}`, pageWidth - 34, 80, { align: "right", maxWidth: 230 });
-      doc.text(`Dátum a čas generovania: ${reportDate}`, pageWidth - 34, 108, { align: "right" });
+      const nameLines = (doc.splitTextToSize(`Názov zákazky: ${projectName}`, 230) as string[]).slice(0, 2);
+      doc.text(nameLines, pageWidth - 34, 80, { align: "right" });
+      doc.text(`Dátum a čas generovania: ${reportDate}`, pageWidth - 34, 122, { align: "right" });
 
       doc.setDrawColor(220, 38, 38);
       doc.setLineWidth(2);
@@ -656,91 +710,160 @@ export function ProjectDetailClient({
 
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(12);
-      doc.text("Súhrn reportu", 24, 186);
+      doc.text(mode === "paper" ? "Súhrn protokolu (verzia na podpis)" : "Súhrn reportu", 24, 182);
 
       doc.setTextColor(51, 65, 85);
       doc.setFontSize(10);
-      doc.text(`Počet riadkov: ${logs.length}`, 24, 206);
-      doc.text(`Celkový počet hodín: ${totalHours} h`, 180, 206);
+      let summaryY = 200;
+      doc.text(`Počet záznamov: ${logs.length}`, 24, summaryY);
+      doc.text(
+        `Odpracovaný čas: ${formatDuration(workTime.workedMinutes)} (${formatHoursDecimal(workTime.workedMinutes)} h)`,
+        180,
+        summaryY,
+      );
+      if (workTime.loggedMinutes > workTime.workedMinutes) {
+        summaryY += 14;
+        doc.setFontSize(8.5);
+        doc.text(
+          `Súčet všetkých záznamov je ${formatDuration(workTime.loggedMinutes)}; časy, ktoré sa v rámci dňa prekrývajú, sú započítané iba raz.`,
+          24,
+          summaryY,
+          { maxWidth: pageWidth - 48 },
+        );
+        doc.setFontSize(10);
+      }
+      if (mode === "report") {
+        summaryY += 14;
+        doc.text(
+          completedAt
+            ? `Stav zákazky: ukončená dňa ${formatDateTime(completedAt)}${completionMethod ? ` (${COMPLETION_METHOD_LABELS[completionMethod]})` : ""}`
+            : "Stav zákazky: aktívna",
+          24,
+          summaryY,
+        );
+      }
+
+      const tableStyles = {
+        styles: {
+          font: "Roboto",
+          fontStyle: "normal" as const,
+          fontSize: 9,
+          textColor: [31, 41, 55] as [number, number, number],
+          cellPadding: 6,
+          lineColor: [203, 213, 225] as [number, number, number],
+          lineWidth: 0.7,
+        },
+        headStyles: {
+          fillColor: [31, 41, 55] as [number, number, number],
+          textColor: [255, 255, 255] as [number, number, number],
+          font: "Roboto",
+          fontStyle: "normal" as const,
+        },
+        footStyles: {
+          fillColor: [241, 245, 249] as [number, number, number],
+          textColor: [15, 23, 42] as [number, number, number],
+          font: "Roboto",
+          fontStyle: "normal" as const,
+        },
+        alternateRowStyles: {
+          fillColor: [249, 250, 251] as [number, number, number],
+        },
+        margin: { left: 24, right: 24, bottom: 170 },
+      };
 
       autoTable(doc, {
-        startY: 218,
-        margin: { left: 24, right: 24, bottom: 170 },
+        ...tableStyles,
+        startY: summaryY + 14,
         head: [["Dátum", "Pracovník", "Od - Do", "Trvanie", "Popis práce"]],
-        body: logs.map((log) => [
+        body: sortedLogs.map((log) => [
           formatDate(log.date),
           log.authorName,
           `${formatTime(log.startTime)} - ${formatTime(log.endTime)}`,
           formatDuration(log.durationInMinutes),
           log.description,
         ]),
-        styles: {
-          font: "Roboto",
-          fontSize: 9,
-          textColor: [31, 41, 55],
-          cellPadding: 6,
-          lineColor: [203, 213, 225],
-          lineWidth: 0.7,
-        },
-        headStyles: {
-          fillColor: [31, 41, 55],
-          textColor: [255, 255, 255],
-          font: "Roboto",
-        },
-        alternateRowStyles: {
-          fillColor: [249, 250, 251],
-        },
         columnStyles: {
           0: { cellWidth: 70 },
           1: { cellWidth: 100 },
-          2: { cellWidth: 110 },
+          2: { cellWidth: 90 },
           3: { cellWidth: 70 },
         },
       });
 
-      const signatureTop = pageHeight - 130;
+      if (workTime.days.length > 0) {
+        autoTable(doc, {
+          ...tableStyles,
+          startY: getLastTableY() + 18,
+          head: [["Dátum", "Odpracovaný čas za deň", "Súčet záznamov"]],
+          body: workTime.days.map((day) => [
+            formatDayKey(day.dayKey),
+            formatDuration(day.workedMinutes),
+            formatDuration(day.loggedMinutes),
+          ]),
+          foot: [
+            [
+              "Spolu",
+              `${formatDuration(workTime.workedMinutes)} (${formatHoursDecimal(workTime.workedMinutes)} h)`,
+              formatDuration(workTime.loggedMinutes),
+            ],
+          ],
+          showFoot: "lastPage",
+          tableWidth: 360,
+        });
+      }
+
+      const signatureTop = pageHeight - 150;
       const signatureBlockWidth = (pageWidth - 60) / 2;
+      const blocks = [
+        { title: "Podpis zamestnanca", x: 24, signature: employeeSignatureValue, signedAt: employeeSignedAtValue },
+        { title: "Podpis zákazníka", x: 36 + signatureBlockWidth, signature: customerSignatureValue, signedAt: customerSignedAtValue },
+      ];
 
       doc.setDrawColor(148, 163, 184);
       doc.setLineWidth(1);
-      doc.rect(24, signatureTop, signatureBlockWidth, 88);
-      doc.rect(36 + signatureBlockWidth, signatureTop, signatureBlockWidth, 88);
+      for (const block of blocks) {
+        doc.rect(block.x, signatureTop, signatureBlockWidth, 108);
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(10);
+        doc.text(block.title, block.x + 10, signatureTop + 16);
 
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(10);
-      doc.text("Podpis zamestnanca", 34, signatureTop + 16);
-      doc.text("Podpis zákazníka", 46 + signatureBlockWidth, signatureTop + 16);
+        if (mode === "paper") {
+          doc.setTextColor(71, 85, 105);
+          doc.setFontSize(9);
+          const lines = [
+            { label: "Meno a priezvisko:", y: signatureTop + 42 },
+            { label: "Dátum:", y: signatureTop + 66 },
+            { label: "Podpis:", y: signatureTop + 94 },
+          ];
+          for (const line of lines) {
+            doc.text(line.label, block.x + 10, line.y);
+            doc.setDrawColor(148, 163, 184);
+            doc.line(block.x + 98, line.y + 2, block.x + signatureBlockWidth - 12, line.y + 2);
+          }
+          continue;
+        }
 
-      if (employeeSignatureValue?.startsWith("data:image")) {
-        doc.addImage(employeeSignatureValue, "PNG", 34, signatureTop + 22, signatureBlockWidth - 22, 36);
-      } else {
-        doc.setTextColor(100, 116, 139);
-        doc.setFontSize(9);
-        doc.text("Nepodpísané", 34, signatureTop + 40);
+        if (block.signature?.startsWith("data:image")) {
+          doc.addImage(block.signature, "PNG", block.x + 10, signatureTop + 24, signatureBlockWidth - 22, 44);
+        } else {
+          doc.setTextColor(100, 116, 139);
+          doc.setFontSize(9);
+          doc.text(
+            completionMethod === "PAPER_PROTOCOL" ? "Podpísané na papierovom protokole" : "Nepodpísané",
+            block.x + 10,
+            signatureTop + 46,
+          );
+        }
+
+        doc.setTextColor(51, 65, 85);
+        doc.setFontSize(8.7);
+        const signedAtText = block.signedAt
+          ? formatSignedAtFull(block.signedAt)
+          : completionMethod === "PAPER_PROTOCOL" && signedProtocol
+            ? `Protokol nahratý dňa: ${formatDateTime(signedProtocol.uploadedAt)}`
+            : "Podpísané dňa: -";
+        doc.text(signedAtText, block.x + 10, signatureTop + 92, { maxWidth: signatureBlockWidth - 16 });
       }
-
-      if (customerSignatureValue?.startsWith("data:image")) {
-        doc.addImage(customerSignatureValue, "PNG", 46 + signatureBlockWidth, signatureTop + 22, signatureBlockWidth - 22, 36);
-      } else {
-        doc.setTextColor(100, 116, 139);
-        doc.setFontSize(9);
-        doc.text("Nepodpísané", 46 + signatureBlockWidth, signatureTop + 40);
-      }
-
-      doc.setTextColor(51, 65, 85);
-      doc.setFontSize(8.7);
-      doc.text(
-        employeeSignedAtValue ? formatSignedAtFull(employeeSignedAtValue) : "Podpísané dňa: -",
-        34,
-        signatureTop + 74,
-        { maxWidth: signatureBlockWidth - 16 },
-      );
-      doc.text(
-        customerSignedAtValue ? formatSignedAtFull(customerSignedAtValue) : "Podpísané dňa: -",
-        46 + signatureBlockWidth,
-        signatureTop + 74,
-        { maxWidth: signatureBlockWidth - 16 },
-      );
 
       const totalPages = doc.getNumberOfPages();
       for (let page = 1; page <= totalPages; page += 1) {
@@ -753,9 +876,71 @@ export function ProjectDetailClient({
         });
       }
 
-      doc.save(`${config.fileSlug}-${projectNumber}.pdf`);
+      doc.save(`${config.fileSlug}-${projectNumber}${mode === "paper" ? "-na-podpis" : ""}.pdf`);
     } catch (e) {
-      setError(getUserFacingError(e, "PDF report sa nepodarilo vygenerovať."));
+      setActionError(getUserFacingError(e, "PDF sa nepodarilo vygenerovať."));
+    }
+  }
+
+  async function handleCompleteWithoutSignature() {
+    setCompleteError(null);
+
+    try {
+      setCompletingProject(true);
+      const response = await fetch(`/api/projects/${projectId}/complete`, { method: "POST" });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { message?: string };
+        throw new Error(payload.message ?? "Nepodarilo sa ukončiť zákazku.");
+      }
+
+      setCompleteModalOpen(false);
+      router.refresh();
+    } catch (e) {
+      setCompleteError(getUserFacingError(e, "Nepodarilo sa ukončiť zákazku."));
+    } finally {
+      setCompletingProject(false);
+    }
+  }
+
+  async function handleProtocolUpload(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setProtocolError(null);
+
+    if (!protocolFile) {
+      setProtocolError("Vyberte súbor s podpísaným protokolom.");
+      return;
+    }
+
+    if (protocolFile.size > MAX_PROTOCOL_SIZE) {
+      setProtocolError("Súbor je príliš veľký (maximum 4 MB).");
+      return;
+    }
+
+    try {
+      setUploadingProtocol(true);
+      const formData = new FormData();
+      formData.append("file", protocolFile);
+
+      const response = await fetch(`/api/projects/${projectId}/protocol`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { message?: string };
+        throw new Error(payload.message ?? "Protokol sa nepodarilo nahrať.");
+      }
+
+      setProtocolFile(null);
+      if (protocolInputRef.current) {
+        protocolInputRef.current.value = "";
+      }
+      router.refresh();
+    } catch (e) {
+      setProtocolError(getUserFacingError(e, "Protokol sa nepodarilo nahrať."));
+    } finally {
+      setUploadingProtocol(false);
     }
   }
 
@@ -809,7 +994,19 @@ export function ProjectDetailClient({
       log.authorName,
     ]);
 
-    const csvContent = [[metadataHeader], [metadataContact], [metadataGeneratedAt], [], header, ...rows]
+    const summaryRows = [
+      [],
+      ["Súhrn odpracovaného času (prekrývajúce sa časy v rámci dňa sú započítané iba raz)"],
+      ["Dátum", "Odpracovaný čas", "Súčet záznamov"],
+      ...workTime.days.map((day) => [
+        formatDayKey(day.dayKey),
+        formatDuration(day.workedMinutes),
+        formatDuration(day.loggedMinutes),
+      ]),
+      ["Spolu", `${formatDuration(workTime.workedMinutes)} (${formatHoursDecimal(workTime.workedMinutes)} h)`, formatDuration(workTime.loggedMinutes)],
+    ];
+
+    const csvContent = [[metadataHeader], [metadataContact], [metadataGeneratedAt], [], header, ...rows, ...summaryRows]
       .map((row) => row.map((cell) => csvEscape(cell)).join(";"))
       .join("\n");
 
@@ -865,7 +1062,8 @@ export function ProjectDetailClient({
         <button
           type="button"
           onClick={() => {
-            void handleExportPdf();
+            setActionError(null);
+            void handleExportPdf("report");
           }}
           className="inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
         >
@@ -896,10 +1094,19 @@ export function ProjectDetailClient({
         ) : null}
       </div>
 
+      {actionError ? <p className="text-sm text-red-700 print:hidden">{actionError}</p> : null}
+
       {isLocked ? (
         <section className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm print:hidden">
-          <p className="text-sm font-medium text-amber-900">
-            Zákazka je po podpise oboma stranami uzamknutá. Ďalšie záznamy práce už nie je možné pridávať ani upravovať.
+          <p className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+            <CheckCircle2 size={16} />
+            Zákazka je ukončená
+            {completedAt ? ` dňa ${formatDateTime(completedAt)}` : ""}
+            {completionMethod ? ` – ${COMPLETION_METHOD_LABELS[completionMethod]}` : ""}
+            {completedByName ? ` (${completedByName})` : ""}.
+          </p>
+          <p className="mt-1 text-sm text-amber-900">
+            Ďalšie záznamy práce už nie je možné pridávať ani upravovať.
           </p>
           {canUnlockProject ? (
             <div className="mt-3">
@@ -912,7 +1119,7 @@ export function ProjectDetailClient({
                 className="inline-flex items-center gap-2 rounded-md border border-amber-400 bg-white px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100"
               >
                 <LockOpen size={16} />
-                Odomknúť zákazku (Zmazať podpisy)
+                Odomknúť zákazku (zmazať podpisy a protokol)
               </button>
             </div>
           ) : null}
@@ -1068,16 +1275,64 @@ export function ProjectDetailClient({
         </div>
       </section>
 
+      {workTime.days.length > 0 ? (
+        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm print:border-0 print:shadow-none">
+          <h2 className="text-lg font-bold text-slate-900">Súhrn odpracovaného času</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Časy záznamov, ktoré sa v rámci jedného dňa prekrývajú, sú započítané iba raz.
+          </p>
+
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-100 text-left text-gray-700">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">Dátum</th>
+                  <th className="px-3 py-2 font-semibold">Odpracovaný čas</th>
+                  <th className="px-3 py-2 font-semibold">Súčet záznamov</th>
+                </tr>
+              </thead>
+              <tbody>
+                {workTime.days.map((day, index) => (
+                  <tr key={day.dayKey} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    <td className="px-3 py-2 text-gray-800">{formatDayKey(day.dayKey)}</td>
+                    <td className="px-3 py-2 font-semibold text-red-700">{formatDuration(day.workedMinutes)}</td>
+                    <td className="px-3 py-2 text-gray-700">
+                      {formatDuration(day.loggedMinutes)}
+                      {day.loggedMinutes > day.workedMinutes ? (
+                        <span className="ml-2 text-xs text-amber-700">
+                          (prekrývanie {formatDuration(day.loggedMinutes - day.workedMinutes)})
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-gray-300 bg-slate-50 font-bold text-slate-900">
+                  <td className="px-3 py-2">Spolu</td>
+                  <td className="px-3 py-2">
+                    {formatDuration(workTime.workedMinutes)} ({formatHoursDecimal(workTime.workedMinutes)} h)
+                  </td>
+                  <td className="px-3 py-2 font-normal text-gray-700">{formatDuration(workTime.loggedMinutes)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm print:hidden">
         <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
           <Signature size={18} className="text-red-600" />
-          Podpísať a uzatvoriť
+          Ukončenie zákazky
         </h2>
         <p className="mt-1 text-sm text-gray-600">
-          Podpis sa uloží do systému spolu s presným časom. Po podpise oboma stranami sa zákazka uzamkne.
+          Zákazku ukončíte digitálnym podpisom oboch strán, nahratím protokolu podpísaného na papieri alebo bez podpisu.
+          Po ukončení sa zákazka uzamkne.
         </p>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <h3 className="mt-4 text-sm font-bold uppercase tracking-wide text-gray-500">Digitálny podpis</h3>
+        <div className="mt-2 grid gap-4 md:grid-cols-2">
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
             <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
               <UserCheck size={16} className="text-red-600" />
@@ -1097,6 +1352,8 @@ export function ProjectDetailClient({
                 )}
                 <p>{formatSignedAtFull(employeeSignedAtValue)}</p>
               </div>
+            ) : isLocked ? (
+              <p className="mt-3 text-sm text-gray-500">Nepodpísané</p>
             ) : (
               <button
                 type="button"
@@ -1127,6 +1384,8 @@ export function ProjectDetailClient({
                 )}
                 <p>{formatSignedAtFull(customerSignedAtValue)}</p>
               </div>
+            ) : isLocked ? (
+              <p className="mt-3 text-sm text-gray-500">Nepodpísané</p>
             ) : (
               <button
                 type="button"
@@ -1140,7 +1399,139 @@ export function ProjectDetailClient({
         </div>
 
         {signatureError ? <p className="mt-3 text-sm text-red-700">{signatureError}</p> : null}
+
+        {signedProtocol ? (
+          <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+            <h3 className="flex items-center gap-2 text-sm font-bold text-emerald-900">
+              <FileSignature size={16} />
+              Podpísaný papierový protokol
+            </h3>
+            <p className="mt-1 text-sm text-emerald-900">
+              {signedProtocol.fileName} ({formatFileSize(signedProtocol.size)}) – nahraté{" "}
+              {formatDateTime(signedProtocol.uploadedAt)}
+              {signedProtocol.uploadedByName ? `, ${signedProtocol.uploadedByName}` : ""}
+            </p>
+            <a
+              href={`/api/projects/${projectId}/protocol`}
+              className="mt-2 inline-flex items-center gap-2 rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"
+            >
+              <Download size={16} />
+              Stiahnuť podpísaný protokol
+            </a>
+          </div>
+        ) : null}
+
+        {!isLocked ? (
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                <FileSignature size={16} className="text-red-600" />
+                Podpis na papieri
+              </h3>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+                <li>Stiahnite a vytlačte protokol na podpis.</li>
+                <li>Nechajte ho podpísať zamestnancom a zákazníkom.</li>
+                <li>Naskenujte alebo odfoťte podpísaný protokol a nahrajte ho – zákazka sa ukončí.</li>
+              </ol>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActionError(null);
+                  void handleExportPdf("paper");
+                }}
+                className="mt-3 inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+              >
+                <Printer size={16} />
+                Stiahnuť protokol na podpis (PDF)
+              </button>
+
+              <form onSubmit={handleProtocolUpload} className="mt-3 space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Podpísaný protokol (PDF, JPG alebo PNG, max. 4 MB)
+                  <input
+                    ref={protocolInputRef}
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png"
+                    onChange={(event) => {
+                      setProtocolFile(event.target.files?.[0] ?? null);
+                      setProtocolError(null);
+                    }}
+                    className="mt-1 block w-full text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-900"
+                  />
+                </label>
+                {protocolError ? <p className="text-sm text-red-700">{protocolError}</p> : null}
+                <button
+                  type="submit"
+                  disabled={uploadingProtocol || !protocolFile}
+                  className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  <Upload size={16} />
+                  {uploadingProtocol ? "Nahrávam..." : "Nahrať protokol a ukončiť zákazku"}
+                </button>
+              </form>
+            </div>
+
+            {canCompleteProject ? (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                  <CheckCircle2 size={16} className="text-red-600" />
+                  Ukončiť bez podpisu
+                </h3>
+                <p className="mt-2 text-sm text-gray-700">
+                  Zákazka sa ukončí a uzamkne bez podpisu zamestnanca aj zákazníka. V reporte bude uvedené, že bola
+                  ukončená bez podpisu.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCompleteError(null);
+                    setCompleteModalOpen(true);
+                  }}
+                  className="mt-3 inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-900"
+                >
+                  <CheckCircle2 size={16} />
+                  Ukončiť zákazku bez podpisu
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
+
+      {completeModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 print:hidden">
+          <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+            <h2 className="text-lg font-bold text-slate-900">Ukončiť zákazku bez podpisu</h2>
+            <p className="mt-2 text-sm text-gray-700">
+              Naozaj chcete ukončiť zákazku <strong>{projectNumber}</strong> bez podpisu? Zákazka sa uzamkne a ďalšie
+              záznamy práce nebude možné pridávať ani upravovať.
+            </p>
+
+            {completeError ? <p className="mt-3 text-sm text-red-700">{completeError}</p> : null}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCompleteModalOpen(false)}
+                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Zrušiť
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleCompleteWithoutSignature();
+                }}
+                disabled={completingProject}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {completingProject ? "Ukončujem..." : "Ukončiť zákazku"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {signatureModalParty ? (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 print:hidden">
@@ -1195,7 +1586,8 @@ export function ProjectDetailClient({
           <div className="w-full max-w-md rounded-xl border border-amber-300 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-amber-900">Odomknutie zákazky</h2>
             <p className="mt-2 text-sm text-gray-700">
-              Naozaj chcete zmazať podpis zamestnanca aj zákazníka? Týmto sa zákazka odomkne.
+              Naozaj chcete zákazku znovu otvoriť? Zmažú sa podpisy zamestnanca aj zákazníka, nahratý podpísaný
+              protokol a údaje o ukončení.
             </p>
 
             {unlockError ? <p className="mt-3 text-sm text-red-700">{unlockError}</p> : null}

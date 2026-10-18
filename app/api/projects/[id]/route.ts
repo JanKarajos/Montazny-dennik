@@ -34,13 +34,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     const lockedProject = await prisma.project.findFirst({
       where: {
         id,
-        AND: [{ employeeSignedAt: { not: null } }, { customerSignedAt: { not: null } }],
+        completedAt: { not: null },
       },
       select: { id: true },
     });
 
     if (lockedProject) {
-      return NextResponse.json({ message: "Zákazka je po podpise uzamknutá." }, { status: 409 });
+      return NextResponse.json({ message: "Zákazka je ukončená a uzamknutá." }, { status: 409 });
     }
 
     const updated = await prisma.project.update({
@@ -82,7 +82,7 @@ export async function DELETE(request: Request, context: RouteContext) {
 
     const project = await prisma.project.findUnique({
       where: { id },
-      select: { id: true, projectNumber: true, employeeSignedAt: true, customerSignedAt: true },
+      select: { id: true, projectNumber: true, completedAt: true },
     });
 
     if (!project) {
@@ -93,8 +93,8 @@ export async function DELETE(request: Request, context: RouteContext) {
       return NextResponse.json({ message: "Potvrdzovacie číslo zákazky sa nezhoduje." }, { status: 400 });
     }
 
-    if (project.employeeSignedAt && project.customerSignedAt) {
-      return NextResponse.json({ message: "Zákazka je po podpise uzamknutá." }, { status: 409 });
+    if (project.completedAt) {
+      return NextResponse.json({ message: "Zákazka je ukončená a uzamknutá." }, { status: 409 });
     }
 
     await prisma.project.delete({ where: { id: project.id } });

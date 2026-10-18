@@ -44,13 +44,13 @@ export async function POST(request: Request) {
     const lockedProject = await prisma.project.findFirst({
       where: {
         id: parsed.data.projectId,
-        AND: [{ employeeSignedAt: { not: null } }, { customerSignedAt: { not: null } }],
+        completedAt: { not: null },
       },
       select: { id: true },
     });
 
     if (lockedProject) {
-      return NextResponse.json({ message: "Zákazka je po podpise uzamknutá." }, { status: 409 });
+      return NextResponse.json({ message: "Zákazka je ukončená a uzamknutá." }, { status: 409 });
     }
 
     const workLog = await prisma.workLog.create({

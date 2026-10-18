@@ -10,6 +10,15 @@ export async function DiaryDetailPage({ id, type }: { id: string; type: DiaryTyp
   const project = await prisma.project.findFirst({
     where: { id, type },
     include: {
+      completedBy: { select: { name: true } },
+      signedProtocol: {
+        select: {
+          fileName: true,
+          size: true,
+          uploadedAt: true,
+          uploadedBy: { select: { name: true } },
+        },
+      },
       workLogs: {
         orderBy: [{ date: "desc" }, { startTime: "desc" }],
         include: {
@@ -44,7 +53,21 @@ export async function DiaryDetailPage({ id, type }: { id: string; type: DiaryTyp
         employeeSignedAt={project.employeeSignedAt?.toISOString() ?? null}
         customerSignature={project.customerSignature}
         customerSignedAt={project.customerSignedAt?.toISOString() ?? null}
-        isLocked={Boolean(project.employeeSignedAt && project.customerSignedAt)}
+        isLocked={project.completedAt !== null}
+        canCompleteProject={hasPermission(user, "EDIT_PROJECT")}
+        completedAt={project.completedAt?.toISOString() ?? null}
+        completionMethod={project.completionMethod}
+        completedByName={project.completedBy?.name ?? null}
+        signedProtocol={
+          project.signedProtocol
+            ? {
+                fileName: project.signedProtocol.fileName,
+                size: project.signedProtocol.size,
+                uploadedAt: project.signedProtocol.uploadedAt.toISOString(),
+                uploadedByName: project.signedProtocol.uploadedBy?.name ?? null,
+              }
+            : null
+        }
         logs={project.workLogs.map((log) => ({
           id: log.id,
           authorId: log.userId,

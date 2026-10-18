@@ -16,6 +16,15 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+const signatureSelect = {
+  employeeSignature: true,
+  employeeSignedAt: true,
+  customerSignature: true,
+  customerSignedAt: true,
+  completedAt: true,
+  completionMethod: true,
+} as const;
+
 export async function PATCH(request: Request, context: RouteContext) {
   const session = await getCurrentSession();
   if (!session) {
@@ -31,64 +40,45 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const now = new Date();
-
-    if (parsed.data.party === "employee") {
-      const result = await prisma.project.updateMany({
-        where: {
-          id,
-          employeeSignedAt: null,
-        },
-        data: {
-          employeeSignature: parsed.data.signatureData,
-          employeeSignedAt: now,
-        },
-      });
-
-      if (result.count === 0) {
-        return NextResponse.json({ message: "Podpis zamestnanca už bol uložený alebo zákazka neexistuje." }, { status: 409 });
-      }
-
-      const project = await prisma.project.findUnique({
-        where: { id },
-        select: {
-          employeeSignature: true,
-          employeeSignedAt: true,
-        },
-      });
-
-      return NextResponse.json({
-        employeeSignature: project?.employeeSignature,
-        employeeSignedAt: project?.employeeSignedAt,
-      });
-    }
+    const isEmployee = parsed.data.party === "employee";
 
     const result = await prisma.project.updateMany({
-      where: {
-        id,
-        customerSignedAt: null,
-      },
-      data: {
-        customerSignature: parsed.data.signatureData,
-        customerSignedAt: now,
-      },
+      where: isEmployee
+        ? { id, completedAt: null, employeeSignedAt: null }
+        : { id, completedAt: null, customerSignedAt: null },
+      data: isEmployee
+        ? { employeeSignature: parsed.data.signatureData, employeeSignedAt: now }
+        : { customerSignature: parsed.data.signatureData, customerSignedAt: now },
     });
 
     if (result.count === 0) {
-      return NextResponse.json({ message: "Podpis zákazníka už bol uložený alebo zákazka neexistuje." }, { status: 409 });
+      return NextResponse.json(
+        {
+          message: isEmployee
+            ? "Podpis zamestnanca už bol uložený, zákazka je ukončená alebo neexistuje."
+            : "Podpis zákazníka už bol uložený, zákazka je ukončená alebo neexistuje.",
+        },
+        { status: 409 },
+      );
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id },
-      select: {
-        customerSignature: true,
-        customerSignedAt: true,
+    // Po podpise oboma stranami sa zákazka ukončí.
+    await prisma.project.updateMany({
+      where: {
+        id,
+        completedAt: null,
+        employeeSignedAt: { not: null },
+        customerSignedAt: { not: null },
+      },
+      data: {
+        completedAt: now,
+        completionMethod: "DIGITAL_SIGNATURE",
+        completedById: session.userId,
       },
     });
 
-    return NextResponse.json({
-      customerSignature: project?.customerSignature,
-      customerSignedAt: project?.customerSignedAt,
-    });
+    const project = await prisma.project.findUnique({ where: { id }, select: signatureSelect });
+    return NextResponse.json(project);
   } catch {
     return NextResponse.json({ message: "Podpis sa nepodarilo uložiť." }, { status: 500 });
   }
@@ -103,21 +93,22 @@ export async function DELETE(_request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
 
-    const updated = await prisma.project.update({
-      where: { id },
-      data: {
-        employeeSignature: null,
-        employeeSignedAt: null,
-        customerSignature: null,
-        customerSignedAt: null,
-      },
-      select: {
-        employeeSignature: true,
-        employeeSignedAt: true,
-        customerSignature: true,
-        customerSignedAt: true,
-      },
-    });
+    const [, updated] = await prisma.$transaction([
+      prisma.signedProtocol.deleteMany({ where: { projectId: id } }),
+      prisma.project.update({
+        where: { id },
+        data: {
+          employeeSignature: null,
+          employeeSignedAt: null,
+          customerSignature: null,
+          customerSignedAt: null,
+          completedAt: null,
+          completionMethod: null,
+          completedById: null,
+        },
+        select: signatureSelect,
+      }),
+    ]);
 
     return NextResponse.json(updated);
   } catch {

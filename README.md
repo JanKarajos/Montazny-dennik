@@ -10,6 +10,8 @@ Produkčná webová aplikácia pre evidenciu montážnych prác (Next.js App Rou
 - Zákazky vo formáte `Číslo zákazky - Názov zákazky`.
 - Vyhľadávanie zákaziek podľa čísla aj názvu.
 - Detail zákazky s časovými záznamami prác.
+- Ukončenie zákazky tromi spôsobmi: digitálny podpis oboch strán, protokol podpísaný na papieri (stiahnutie PDF na podpis a nahratie naskenovaného protokolu – PDF/JPG/PNG, max. 4 MB) alebo bez podpisu (oprávnenie `EDIT_PROJECT`). Ukončená zákazka je uzamknutá, odomknúť ju môže používateľ s oprávnením `UNLOCK_PROJECT`.
+- Súhrn odpracovaného času po dňoch – časy záznamov, ktoré sa v rámci dňa prekrývajú, sa započítajú iba raz (UI, PDF aj CSV).
 - Servisný denník (`/servis`) so samostatnými servisnými zákazkami – rovnaké funkcie ako montážny denník (záznamy prác, podpisy zamestnanca a zákazníka, uzamknutie, PDF protokol, CSV export, tlač).
 - Inline úprava zákazky pri oprávnení `EDIT_PROJECT`.
 - Export do CSV (UTF-8 s BOM) a tlač denníka.
@@ -84,3 +86,11 @@ npm run prisma:seed
 - Heslo: `admin123`
 
 Po prvom prihlásení heslo okamžite zmeňte.
+
+## Aktualizácia produkčnej databázy
+
+Vercel spúšťa iba `next build` a databázu neaktualizuje. Po nasadení novej verzie spustite s produkčným `DATABASE_URL`:
+
+```bash
+npm run db:apply
+```
