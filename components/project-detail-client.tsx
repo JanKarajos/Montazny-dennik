@@ -17,6 +17,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getUserFacingError } from "@/lib/client-error";
@@ -1008,22 +1009,15 @@ export function ProjectDetailClient({
     }
   }
 
-  async function handleAddPerson(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function addPerson(name: string, addToList: boolean): Promise<boolean> {
     setPersonError(null);
-
-    const name = personInput.replace(/\s+/g, " ").trim();
-    if (!name) {
-      setPersonError("Vyberte osobu zo zoznamu alebo dopíšte meno.");
-      return;
-    }
 
     try {
       setAddingPerson(true);
       const response = await fetch(`/api/projects/${projectId}/persons`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, addToList: personAddToList && personInputIsNew }),
+        body: JSON.stringify({ name, addToList }),
       });
 
       if (!response.ok) {
@@ -1031,13 +1025,28 @@ export function ProjectDetailClient({
         throw new Error(payload.message ?? "Osobu sa nepodarilo pridať.");
       }
 
-      setPersonInput("");
-      setPersonAddToList(false);
       router.refresh();
+      return true;
     } catch (e) {
       setPersonError(getUserFacingError(e, "Osobu sa nepodarilo pridať."));
+      return false;
     } finally {
       setAddingPerson(false);
+    }
+  }
+
+  async function handleAddPerson(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const name = personInput.replace(/\s+/g, " ").trim();
+    if (!name) {
+      setPersonError("Dopíšte meno osoby.");
+      return;
+    }
+
+    if (await addPerson(name, personAddToList && personInputIsNew)) {
+      setPersonInput("");
+      setPersonAddToList(false);
     }
   }
 
@@ -1329,10 +1338,21 @@ export function ProjectDetailClient({
 
       {persons.length > 0 || canEditPersons ? (
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm print:border-0 print:p-0 print:shadow-none">
-          <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-            <Users size={18} className="text-red-600 print:hidden" />
-            {personsLabel}
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+              <Users size={18} className="text-red-600 print:hidden" />
+              {personsLabel}
+            </h2>
+            {canManagePersons ? (
+              <Link
+                href="/osoby"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-red-700 hover:underline print:hidden"
+              >
+                <Pencil size={14} />
+                Upraviť zoznam osôb
+              </Link>
+            ) : null}
+          </div>
 
           {persons.length > 0 ? (
             <ul className="mt-3 flex flex-wrap gap-2">
@@ -1362,7 +1382,38 @@ export function ProjectDetailClient({
           )}
 
           {canEditPersons ? (
-            <form onSubmit={handleAddPerson} className="mt-3 space-y-2 print:hidden">
+            <div className="mt-4 print:hidden">
+              <p className="text-sm font-medium text-gray-700">Vybrať zo zoznamu</p>
+              {availablePersonNames.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {availablePersonNames.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => void addPerson(name, false)}
+                      disabled={addingPerson}
+                      className="inline-flex items-center gap-1 rounded-full border border-dashed border-red-300 bg-white py-1 pl-2 pr-3 text-sm text-red-800 hover:border-solid hover:bg-red-50 disabled:opacity-60"
+                    >
+                      <PlusCircle size={14} />
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-sm text-gray-500">
+                  {personListNames.length === 0
+                    ? canManagePersons
+                      ? "Zoznam osôb je zatiaľ prázdny – doplňte ho cez „Upraviť zoznam osôb“ alebo pri dopísaní mena zaškrtnite uloženie do zoznamu."
+                      : "Zoznam osôb je zatiaľ prázdny. Doplniť ho môže používateľ s oprávnením „Správa zoznamu osôb“ (napr. vedúci montáže)."
+                    : "Všetky osoby zo zoznamu sú už pri zákazke pridané."}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {canEditPersons ? (
+            <form onSubmit={handleAddPerson} className="mt-4 space-y-2 print:hidden">
+              <p className="text-sm font-medium text-gray-700">Alebo dopísať meno</p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   value={personInput}
@@ -1371,7 +1422,7 @@ export function ProjectDetailClient({
                     setPersonError(null);
                   }}
                   list={`person-list-${projectId}`}
-                  placeholder="Vyberte zo zoznamu alebo dopíšte meno"
+                  placeholder="Meno a priezvisko"
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-red-500 focus:ring sm:max-w-md"
                 />
                 <datalist id={`person-list-${projectId}`}>
