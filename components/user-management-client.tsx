@@ -395,6 +395,87 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
     }
   }
 
+  function renderPermissionChips(ownerId: string, codes: string[], emptyText: string) {
+    return (
+      <div className="flex flex-wrap gap-1">
+        {codes.map((code) => (
+          <span key={`${ownerId}:${code}`} className="rounded border border-gray-300 bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+            {permissionDescriptionByCode[code as PermissionCode] ?? code}
+          </span>
+        ))}
+        {codes.length === 0 ? <span className="text-xs text-gray-500">{emptyText}</span> : null}
+      </div>
+    );
+  }
+
+  function renderUserActions(user: UserRow) {
+    return (
+      <>
+        {canResetUserPasswords ? (
+          <button
+            type="button"
+            onClick={() => {
+              setResetPasswordUser(user);
+              setResetPasswordValue("");
+              setResetPasswordError(null);
+            }}
+            className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+          >
+            <KeyRound size={14} />
+            Zmeniť heslo
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => openEditUserModal(user)}
+          className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+        >
+          <Pencil size={14} />
+          Upraviť
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setDeletingUser(user);
+            setDeleteUserError(null);
+          }}
+          className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+        >
+          <Trash2 size={14} />
+          Vymazať
+        </button>
+      </>
+    );
+  }
+
+  function renderRoleActions(role: RoleRow) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => openEditRoleModal(role)}
+          disabled={role.isSystem}
+          className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Pencil size={14} />
+          Upraviť
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setDeletingRole(role);
+            setDeleteRoleError(null);
+          }}
+          disabled={role.isSystem}
+          className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Trash2 size={14} />
+          Vymazať
+        </button>
+      </>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -517,7 +598,26 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
           <h2 className="text-lg font-bold">Správa používateľov</h2>
         </div>
 
-        <div className="overflow-x-auto">
+        <ul className="divide-y divide-gray-200 md:hidden">
+          {localUsers.map((user) => (
+            <li key={user.id} className="space-y-2 px-3 py-3">
+              <div>
+                <p className="font-semibold text-gray-900">{user.name}</p>
+                <p className="break-all text-sm text-gray-600">{user.email}</p>
+                <p className="mt-1 text-sm text-gray-700">
+                  Rola: <span className="font-medium">{user.roleName}</span>
+                </p>
+              </div>
+              {renderPermissionChips(user.id, user.permissions, "Žiadne individuálne oprávnenia")}
+              <div className="flex flex-wrap gap-2">{renderUserActions(user)}</div>
+            </li>
+          ))}
+          {localUsers.length === 0 ? (
+            <li className="px-3 py-6 text-center text-sm text-gray-500">Zatiaľ nie sú evidovaní žiadni používatelia.</li>
+          ) : null}
+        </ul>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-100 text-left text-gray-700">
               <tr>
@@ -535,53 +635,10 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
                   <td className="px-3 py-3 text-gray-700">{user.email}</td>
                   <td className="px-3 py-3 text-gray-700">{user.roleName}</td>
                   <td className="px-3 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {user.permissions.map((code) => (
-                        <span key={`${user.id}:${code}`} className="rounded border border-gray-300 bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                          {permissionDescriptionByCode[code as PermissionCode] ?? code}
-                        </span>
-                      ))}
-                      {user.permissions.length === 0 ? (
-                        <span className="text-xs text-gray-500">Žiadne individuálne oprávnenia</span>
-                      ) : null}
-                    </div>
+                    {renderPermissionChips(user.id, user.permissions, "Žiadne individuálne oprávnenia")}
                   </td>
                   <td className="px-3 py-3">
-                    <div className="flex justify-end gap-2">
-                      {canResetUserPasswords ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setResetPasswordUser(user);
-                            setResetPasswordValue("");
-                            setResetPasswordError(null);
-                          }}
-                          className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50"
-                        >
-                          <KeyRound size={14} />
-                          Zmeniť heslo
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => openEditUserModal(user)}
-                        className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
-                      >
-                        <Pencil size={14} />
-                        Upraviť
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeletingUser(user);
-                          setDeleteUserError(null);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 size={14} />
-                        Vymazať
-                      </button>
-                    </div>
+                    <div className="flex justify-end gap-2">{renderUserActions(user)}</div>
                   </td>
                 </tr>
               ))}
@@ -602,7 +659,20 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
         <div className="border-b border-gray-200 bg-slate-900 px-4 py-3 text-white">
           <h2 className="text-lg font-bold">Správa rolí</h2>
         </div>
-        <div className="overflow-x-auto">
+        <ul className="divide-y divide-gray-200 md:hidden">
+          {localRoles.map((role) => (
+            <li key={role.id} className="space-y-2 px-3 py-3">
+              <p className="font-semibold text-gray-900">
+                {role.name}
+                <span className="ml-2 text-xs font-normal text-gray-500">{role.isSystem ? "Systémová" : "Vlastná"}</span>
+              </p>
+              {renderPermissionChips(role.id, role.permissions, "Bez oprávnení")}
+              <div className="flex flex-wrap gap-2">{renderRoleActions(role)}</div>
+            </li>
+          ))}
+        </ul>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-100 text-left text-gray-700">
               <tr>
@@ -618,39 +688,10 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
                   <td className="px-3 py-3 font-medium text-gray-800">{role.name}</td>
                   <td className="px-3 py-3 text-gray-700">{role.isSystem ? "Systémová" : "Vlastná"}</td>
                   <td className="px-3 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {role.permissions.map((code) => (
-                        <span key={`${role.id}:${code}`} className="rounded border border-gray-300 bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                          {permissionDescriptionByCode[code as PermissionCode] ?? code}
-                        </span>
-                      ))}
-                      {role.permissions.length === 0 ? <span className="text-xs text-gray-500">Bez oprávnení</span> : null}
-                    </div>
+                    {renderPermissionChips(role.id, role.permissions, "Bez oprávnení")}
                   </td>
                   <td className="px-3 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEditRoleModal(role)}
-                        disabled={role.isSystem}
-                        className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Pencil size={14} />
-                        Upraviť
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeletingRole(role);
-                          setDeleteRoleError(null);
-                        }}
-                        disabled={role.isSystem}
-                        className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Trash2 size={14} />
-                        Vymazať
-                      </button>
-                    </div>
+                    <div className="flex justify-end gap-2">{renderRoleActions(role)}</div>
                   </td>
                 </tr>
               ))}
@@ -660,8 +701,8 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
       </section>
 
       {editingUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/60 p-4">
+          <div className="my-auto w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-slate-900">Upraviť používateľa</h2>
             <p className="mt-1 text-sm text-gray-600">Zmeňte meno, email, rolu a individuálne oprávnenia používateľa.</p>
 
@@ -762,8 +803,8 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
       ) : null}
 
       {deletingUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
-          <div className="w-full max-w-md rounded-xl border border-red-300 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/70 p-4">
+          <div className="my-auto w-full max-w-md rounded-xl border border-red-300 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-red-800">Vymazať používateľa</h2>
             <p className="mt-2 text-sm text-gray-700">Naozaj chcete vymazať tohto používateľa?</p>
             <p className="mt-1 text-sm text-gray-800">
@@ -795,8 +836,8 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
       ) : null}
 
       {resetPasswordUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
-          <div className="w-full max-w-md rounded-xl border border-amber-300 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/70 p-4">
+          <div className="my-auto w-full max-w-md rounded-xl border border-amber-300 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-amber-800">Zmena hesla používateľa</h2>
             <p className="mt-2 text-sm text-gray-700">
               Nastavte nové heslo pre používateľa <strong>{resetPasswordUser.name}</strong>.
@@ -842,8 +883,8 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
       ) : null}
 
       {editingRole ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/60 p-4">
+          <div className="my-auto w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-slate-900">Upraviť rolu</h2>
 
             <form onSubmit={handleEditRole} className="mt-4 space-y-3">
@@ -901,8 +942,8 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
       ) : null}
 
       {deletingRole ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
-          <div className="w-full max-w-md rounded-xl border border-red-300 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/70 p-4">
+          <div className="my-auto w-full max-w-md rounded-xl border border-red-300 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-red-800">Vymazať rolu</h2>
             <p className="mt-2 text-sm text-gray-700">Naozaj chcete vymazať rolu {deletingRole.name}?</p>
             <p className="mt-2 text-xs text-gray-600">Rolu je možné vymazať len keď nie je priradená žiadnemu používateľovi.</p>
