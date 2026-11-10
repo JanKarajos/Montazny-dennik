@@ -11,6 +11,8 @@ Produkčná webová aplikácia pre evidenciu montážnych prác (Next.js App Rou
 - Vyhľadávanie zákaziek podľa čísla aj názvu.
 - Detail zákazky s časovými záznamami prác.
 - Ukončenie zákazky tromi spôsobmi: digitálny podpis oboch strán, protokol podpísaný na papieri (stiahnutie PDF na podpis a nahratie naskenovaného protokolu – PDF/JPG/PNG, max. 4 MB) alebo bez podpisu (oprávnenie `EDIT_PROJECT`). Ukončená zákazka je uzamknutá, odomknúť ju môže používateľ s oprávnením `UNLOCK_PROJECT`.
+- Osoby na montáži / servise pri každej zákazke – vybrané zo zoznamu osôb alebo dopísané ručne. Zoznam osôb (`/osoby`) spravuje používateľ s oprávnením `MANAGE_PERSONS`; osoby k zákazke pridáva používateľ s oprávnením `ADD_LOGS`.
+- Odoslanie PDF reportu e-mailom: na mobile/tablete cez systémové „Zdieľať“ do mailovej aplikácie, na počítači ako koncept e-mailu (.eml) s PDF v prílohe, ktorý Outlook otvorí ako novú správu.
 - Súhrn odpracovaného času po dňoch – časy záznamov, ktoré sa v rámci dňa prekrývajú, sa započítajú iba raz (UI, PDF aj CSV).
 - Servisný denník (`/servis`) so samostatnými servisnými zákazkami – rovnaké funkcie ako montážny denník (záznamy prác, podpisy zamestnanca a zákazníka, uzamknutie, PDF protokol, CSV export, tlač).
 - Inline úprava zákazky pri oprávnení `EDIT_PROJECT`.
