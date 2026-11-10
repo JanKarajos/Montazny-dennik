@@ -46,6 +46,7 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
   const [editUserName, setEditUserName] = useState("");
   const [editUserEmail, setEditUserEmail] = useState("");
   const [editUserPermissionCodes, setEditUserPermissionCodes] = useState<PermissionCode[]>([]);
+  const [editUserRoleId, setEditUserRoleId] = useState("");
   const [editingUserSubmitting, setEditingUserSubmitting] = useState(false);
   const [editUserError, setEditUserError] = useState<string | null>(null);
 
@@ -72,6 +73,8 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
 
   const [userError, setUserError] = useState<string | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
+
+  const editUserRole = localRoles.find((role) => role.id === editUserRoleId) ?? null;
 
   const permissionDescriptionByCode = useMemo(
     () => Object.fromEntries(availablePermissions.map((item) => [item.code, item.description])),
@@ -169,6 +172,7 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
     setEditingUser(user);
     setEditUserName(user.name);
     setEditUserEmail(user.email);
+    setEditUserRoleId(user.roleId ?? "");
     setEditUserPermissionCodes(user.permissions.filter((permission): permission is PermissionCode => permission in permissionDescriptionByCode));
     setEditUserError(null);
   }
@@ -204,6 +208,7 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
           name: editUserName.trim(),
           email: editUserEmail.trim(),
           permissionCodes: editUserPermissionCodes,
+          ...(editUserRoleId ? { roleId: editUserRoleId } : {}),
         }),
       });
 
@@ -658,7 +663,7 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
           <div className="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-slate-900">Upraviť používateľa</h2>
-            <p className="mt-1 text-sm text-gray-600">Zmeňte meno, email a individuálne oprávnenia používateľa.</p>
+            <p className="mt-1 text-sm text-gray-600">Zmeňte meno, email, rolu a individuálne oprávnenia používateľa.</p>
 
             <form onSubmit={handleEditUser} className="mt-4 space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -682,6 +687,36 @@ export function UserManagementClient({ canResetUserPasswords, users, roles, avai
                   />
                 </label>
               </div>
+
+              <label className="block text-sm font-medium text-gray-700">
+                Rola
+                <select
+                  value={editUserRoleId}
+                  onChange={(event) => setEditUserRoleId(event.target.value)}
+                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none ring-red-500 focus:ring"
+                >
+                  {!editUserRoleId ? <option value="">Vyberte rolu</option> : null}
+                  {localRoles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {editUserRole ? (
+                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  <p className="font-semibold text-gray-700">Rola „{editUserRole.name}“ dáva oprávnenia:</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {editUserRole.permissions.map((code) => (
+                      <span key={code} className="rounded border border-gray-300 bg-white px-2 py-0.5 text-gray-700">
+                        {permissionDescriptionByCode[code as PermissionCode] ?? code}
+                      </span>
+                    ))}
+                    {editUserRole.permissions.length === 0 ? <span>žiadne</span> : null}
+                  </div>
+                </div>
+              ) : null}
 
               <div>
                 <p className="text-sm font-medium text-gray-700">Individuálne oprávnenia</p>
