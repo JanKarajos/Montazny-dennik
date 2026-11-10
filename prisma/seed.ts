@@ -53,6 +53,7 @@ const corePermissions = [
   { code: "MANAGE_USERS", description: "Správa používateľov a rolí" },
   { code: "RESET_USER_PASSWORDS", description: "Zmena hesiel používateľov adminom" },
   { code: "UNLOCK_PROJECT", description: "Odomknutie zákaziek a mazanie podpisov" },
+  { code: "MANAGE_PERSONS", description: "Správa zoznamu osôb na montáž a servis" },
 ] as const;
 
 function dateAt(date: string, time: string) {

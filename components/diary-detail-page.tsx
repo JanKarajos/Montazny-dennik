@@ -11,6 +11,7 @@ export async function DiaryDetailPage({ id, type }: { id: string; type: DiaryTyp
     where: { id, type },
     include: {
       completedBy: { select: { name: true } },
+      persons: { orderBy: { name: "asc" }, select: { id: true, name: true } },
       signedProtocol: {
         select: {
           fileName: true,
@@ -36,6 +37,8 @@ export async function DiaryDetailPage({ id, type }: { id: string; type: DiaryTyp
     notFound();
   }
 
+  const personList = await prisma.person.findMany({ orderBy: { name: "asc" }, select: { name: true } });
+
   return (
     <section className="space-y-4">
       <ProjectDetailClient
@@ -55,6 +58,9 @@ export async function DiaryDetailPage({ id, type }: { id: string; type: DiaryTyp
         customerSignedAt={project.customerSignedAt?.toISOString() ?? null}
         isLocked={project.completedAt !== null}
         canCompleteProject={hasPermission(user, "EDIT_PROJECT")}
+        canManagePersons={hasPermission(user, "MANAGE_PERSONS")}
+        persons={project.persons}
+        personListNames={personList.map((person) => person.name)}
         completedAt={project.completedAt?.toISOString() ?? null}
         completionMethod={project.completionMethod}
         completedByName={project.completedBy?.name ?? null}

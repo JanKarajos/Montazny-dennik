@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ClipboardList, ShieldCheck, UserRound, Wrench } from "lucide-react";
+import { ClipboardList, ShieldCheck, UserRound, Users, Wrench } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { ManexFooter } from "@/components/manex-footer";
 import { ManexLogo } from "@/components/manex-logo";
@@ -8,6 +8,7 @@ import { hasPermission, requireUser } from "@/lib/guards";
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const canManageUsers = hasPermission(user, "MANAGE_USERS");
+  const canManagePersons = hasPermission(user, "MANAGE_PERSONS");
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -31,6 +32,16 @@ export default async function ProtectedLayout({ children }: { children: React.Re
               <Wrench size={15} />
               Servisný denník
             </Link>
+
+            {canManagePersons ? (
+              <Link
+                href="/osoby"
+                className="inline-flex items-center gap-2 rounded-md border border-slate-700 px-3 py-2 font-semibold text-gray-100 transition hover:border-red-500 hover:bg-slate-800"
+              >
+                <Users size={15} />
+                Osoby
+              </Link>
+            ) : null}
 
             <Link
               href="/moj-profil"

@@ -6,6 +6,7 @@ import {
   FileDown,
   FileSignature,
   LockOpen,
+  Mail,
   Pencil,
   Printer,
   PlusCircle,
@@ -13,12 +14,15 @@ import {
   Trash2,
   Upload,
   UserCheck,
+  Users,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getUserFacingError } from "@/lib/client-error";
 import { COMPLETION_METHOD_LABELS, CompletionMethodCode } from "@/lib/completion";
 import { DIARY_CONFIG, DiaryTypeCode } from "@/lib/diary-types";
+import { buildEmailDraft } from "@/lib/email-draft";
 import { formatHoursDecimal, getDayKey, summarizeWorkTime } from "@/lib/work-time";
 
 type LogRow = {
@@ -43,6 +47,11 @@ type SignedProtocolInfo = {
 
 type PdfMode = "report" | "paper";
 
+type ProjectPersonRow = {
+  id: string;
+  name: string;
+};
+
 const MAX_PROTOCOL_SIZE = 4 * 1024 * 1024;
 
 type Props = {
@@ -58,6 +67,9 @@ type Props = {
   canManageAllLogs: boolean;
   canUnlockProject: boolean;
   canCompleteProject: boolean;
+  canManagePersons: boolean;
+  persons: ProjectPersonRow[];
+  personListNames: string[];
   completedAt: string | null;
   completionMethod: CompletionMethodCode | null;
   completedByName: string | null;
@@ -129,6 +141,16 @@ function formatDateForInput(dateInput: string): string {
 function formatDayKey(dayKey: string): string {
   const [year, month, day] = dayKey.split("-");
   return `${day}.${month}.${year}`;
+}
+
+function pdfFileNamePart(value: string): string {
+  return (
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^A-Za-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "zakazka"
+  );
 }
 
 function formatFileSize(bytes: number): string {
@@ -224,6 +246,9 @@ export function ProjectDetailClient({
   canManageAllLogs,
   canUnlockProject,
   canCompleteProject,
+  canManagePersons,
+  persons,
+  personListNames,
   completedAt,
   completionMethod,
   completedByName,
@@ -236,6 +261,7 @@ export function ProjectDetailClient({
 }: Props) {
   const router = useRouter();
   const config = DIARY_CONFIG[diaryType];
+  const personsLabel = diaryType === "SERVICE" ? "Osoby na servise" : "Osoby na montáži";
 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState("07:00");
@@ -290,6 +316,30 @@ export function ProjectDetailClient({
   const protocolInputRef = useRef<HTMLInputElement | null>(null);
 
   const workTime = useMemo(() => summarizeWorkTime(logs), [logs]);
+
+  const [personInput, setPersonInput] = useState("");
+  const [personAddToList, setPersonAddToList] = useState(false);
+  const [addingPerson, setAddingPerson] = useState(false);
+  const [removingPersonId, setRemovingPersonId] = useState<string | null>(null);
+  const [personError, setPersonError] = useState<string | null>(null);
+  const availablePersonNames = useMemo(() => {
+    const assigned = new Set(persons.map((person) => person.name.toLocaleLowerCase("sk")));
+    return personListNames.filter((name) => !assigned.has(name.toLocaleLowerCase("sk")));
+  }, [persons, personListNames]);
+  const personInputIsNew =
+    personInput.trim().length > 0 &&
+    !personListNames.some((name) => name.toLocaleLowerCase("sk") === personInput.trim().toLocaleLowerCase("sk"));
+  const canEditPersons = canAddLogs && !isLocked;
+
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailInfo, setEmailInfo] = useState<string | null>(null);
+  const [canShareFiles, setCanShareFiles] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
@@ -651,235 +701,249 @@ export function ProjectDetailClient({
 
   async function handleExportPdf(mode: PdfMode) {
     try {
-      const [{ default: JsPdf }, autoTableModule] = await Promise.all([
-        import("jspdf"),
-        import("jspdf-autotable"),
-      ]);
-      const autoTable = autoTableModule.default;
-
-      const fontBase64 = await getRobotoFontBase64();
-      const logoDataUrl = await getLogoDataUrl();
-      const reportDate = formatDateTime(new Date());
-      const sortedLogs = [...logs].sort(
-        (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
-      );
-
-      const doc = new JsPdf({ unit: "pt", format: "a4" });
-      doc.addFileToVFS("Roboto.ttf", fontBase64);
-      doc.addFont("Roboto.ttf", "Roboto", "normal");
-      doc.setFont("Roboto", "normal");
-
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const getLastTableY = () =>
-        (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 0;
-
-      doc.setFillColor(245, 246, 248);
-      doc.rect(20, 20, pageWidth - 40, 124, "F");
-
-      doc.addImage(logoDataUrl, "PNG", 30, 32, 88, 44);
-
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(13);
-      doc.text("MANEX spol. s r.o.", 124, 46);
-      doc.setTextColor(51, 65, 85);
-      doc.setFontSize(9.5);
-      doc.text("Krátka 21, 044 14 Čaňa, Slovenská republika", 124, 61);
-      doc.text("tel.: +421 (55) 699 86 22", 124, 74);
-      doc.text("E-mail: manex@manex.sk", 124, 87);
-      doc.text("Web: www.manex.sk", 124, 100);
-
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(19);
-      doc.text(config.pdfTitle, pageWidth - 34, 48, { align: "right" });
-
-      doc.setTextColor(71, 85, 105);
-      doc.setFontSize(10);
-      doc.text(`Číslo zákazky: ${projectNumber}`, pageWidth - 34, 66, { align: "right" });
-      const nameLines = (doc.splitTextToSize(`Názov zákazky: ${projectName}`, 230) as string[]).slice(0, 2);
-      doc.text(nameLines, pageWidth - 34, 80, { align: "right" });
-      doc.text(`Dátum a čas generovania: ${reportDate}`, pageWidth - 34, 122, { align: "right" });
-
-      doc.setDrawColor(220, 38, 38);
-      doc.setLineWidth(2);
-      doc.line(20, 152, pageWidth - 20, 152);
-
-      doc.setDrawColor(71, 85, 105);
-      doc.setLineWidth(1);
-      doc.line(20, 158, pageWidth - 20, 158);
-
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(12);
-      doc.text(mode === "paper" ? "Súhrn protokolu (verzia na podpis)" : "Súhrn reportu", 24, 182);
-
-      doc.setTextColor(51, 65, 85);
-      doc.setFontSize(10);
-      let summaryY = 200;
-      doc.text(`Počet záznamov: ${logs.length}`, 24, summaryY);
-      doc.text(
-        `Odpracovaný čas: ${formatDuration(workTime.workedMinutes)} (${formatHoursDecimal(workTime.workedMinutes)} h)`,
-        180,
-        summaryY,
-      );
-      if (workTime.loggedMinutes > workTime.workedMinutes) {
-        summaryY += 14;
-        doc.setFontSize(8.5);
-        doc.text(
-          `Súčet všetkých záznamov je ${formatDuration(workTime.loggedMinutes)}; časy, ktoré sa v rámci dňa prekrývajú, sú započítané iba raz.`,
-          24,
-          summaryY,
-          { maxWidth: pageWidth - 48 },
-        );
-        doc.setFontSize(10);
-      }
-      if (mode === "report") {
-        summaryY += 14;
-        doc.text(
-          completedAt
-            ? `Stav zákazky: ukončená dňa ${formatDateTime(completedAt)}${completionMethod ? ` (${COMPLETION_METHOD_LABELS[completionMethod]})` : ""}`
-            : "Stav zákazky: aktívna",
-          24,
-          summaryY,
-        );
-      }
-
-      const tableStyles = {
-        styles: {
-          font: "Roboto",
-          fontStyle: "normal" as const,
-          fontSize: 9,
-          textColor: [31, 41, 55] as [number, number, number],
-          cellPadding: 6,
-          lineColor: [203, 213, 225] as [number, number, number],
-          lineWidth: 0.7,
-        },
-        headStyles: {
-          fillColor: [31, 41, 55] as [number, number, number],
-          textColor: [255, 255, 255] as [number, number, number],
-          font: "Roboto",
-          fontStyle: "normal" as const,
-        },
-        footStyles: {
-          fillColor: [241, 245, 249] as [number, number, number],
-          textColor: [15, 23, 42] as [number, number, number],
-          font: "Roboto",
-          fontStyle: "normal" as const,
-        },
-        alternateRowStyles: {
-          fillColor: [249, 250, 251] as [number, number, number],
-        },
-        margin: { left: 24, right: 24, bottom: 170 },
-      };
-
-      autoTable(doc, {
-        ...tableStyles,
-        startY: summaryY + 14,
-        head: [["Dátum", "Pracovník", "Od - Do", "Trvanie", "Popis práce"]],
-        body: sortedLogs.map((log) => [
-          formatDate(log.date),
-          log.authorName,
-          `${formatTime(log.startTime)} - ${formatTime(log.endTime)}`,
-          formatDuration(log.durationInMinutes),
-          log.description,
-        ]),
-        columnStyles: {
-          0: { cellWidth: 70 },
-          1: { cellWidth: 100 },
-          2: { cellWidth: 90 },
-          3: { cellWidth: 70 },
-        },
-      });
-
-      if (workTime.days.length > 0) {
-        autoTable(doc, {
-          ...tableStyles,
-          startY: getLastTableY() + 18,
-          head: [["Dátum", "Odpracovaný čas za deň", "Súčet záznamov"]],
-          body: workTime.days.map((day) => [
-            formatDayKey(day.dayKey),
-            formatDuration(day.workedMinutes),
-            formatDuration(day.loggedMinutes),
-          ]),
-          foot: [
-            [
-              "Spolu",
-              `${formatDuration(workTime.workedMinutes)} (${formatHoursDecimal(workTime.workedMinutes)} h)`,
-              formatDuration(workTime.loggedMinutes),
-            ],
-          ],
-          showFoot: "lastPage",
-          tableWidth: 360,
-        });
-      }
-
-      const signatureTop = pageHeight - 150;
-      const signatureBlockWidth = (pageWidth - 60) / 2;
-      const blocks = [
-        { title: "Podpis zamestnanca", x: 24, signature: employeeSignatureValue, signedAt: employeeSignedAtValue },
-        { title: "Podpis zákazníka", x: 36 + signatureBlockWidth, signature: customerSignatureValue, signedAt: customerSignedAtValue },
-      ];
-
-      doc.setDrawColor(148, 163, 184);
-      doc.setLineWidth(1);
-      for (const block of blocks) {
-        doc.rect(block.x, signatureTop, signatureBlockWidth, 108);
-        doc.setTextColor(15, 23, 42);
-        doc.setFontSize(10);
-        doc.text(block.title, block.x + 10, signatureTop + 16);
-
-        if (mode === "paper") {
-          doc.setTextColor(71, 85, 105);
-          doc.setFontSize(9);
-          const lines = [
-            { label: "Meno a priezvisko:", y: signatureTop + 42 },
-            { label: "Dátum:", y: signatureTop + 66 },
-            { label: "Podpis:", y: signatureTop + 94 },
-          ];
-          for (const line of lines) {
-            doc.text(line.label, block.x + 10, line.y);
-            doc.setDrawColor(148, 163, 184);
-            doc.line(block.x + 98, line.y + 2, block.x + signatureBlockWidth - 12, line.y + 2);
-          }
-          continue;
-        }
-
-        if (block.signature?.startsWith("data:image")) {
-          doc.addImage(block.signature, "PNG", block.x + 10, signatureTop + 24, signatureBlockWidth - 22, 44);
-        } else {
-          doc.setTextColor(100, 116, 139);
-          doc.setFontSize(9);
-          doc.text(
-            completionMethod === "PAPER_PROTOCOL" ? "Podpísané na papierovom protokole" : "Nepodpísané",
-            block.x + 10,
-            signatureTop + 46,
-          );
-        }
-
-        doc.setTextColor(51, 65, 85);
-        doc.setFontSize(8.7);
-        const signedAtText = block.signedAt
-          ? formatSignedAtFull(block.signedAt)
-          : completionMethod === "PAPER_PROTOCOL" && signedProtocol
-            ? `Protokol nahratý dňa: ${formatDateTime(signedProtocol.uploadedAt)}`
-            : "Podpísané dňa: -";
-        doc.text(signedAtText, block.x + 10, signatureTop + 92, { maxWidth: signatureBlockWidth - 16 });
-      }
-
-      const totalPages = doc.getNumberOfPages();
-      for (let page = 1; page <= totalPages; page += 1) {
-        doc.setPage(page);
-        doc.setFont("Roboto", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
-        doc.text(`Strana ${page}/${totalPages}`, pageWidth - 24, pageHeight - 12, {
-          align: "right",
-        });
-      }
-
-      doc.save(`${config.fileSlug}-${projectNumber}${mode === "paper" ? "-na-podpis" : ""}.pdf`);
+      const { doc, fileName } = await createPdf(mode);
+      doc.save(fileName);
     } catch (e) {
       setActionError(getUserFacingError(e, "PDF sa nepodarilo vygenerovať."));
     }
+  }
+
+  async function createPdf(mode: PdfMode) {
+    const [{ default: JsPdf }, autoTableModule] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
+    const autoTable = autoTableModule.default;
+
+    const fontBase64 = await getRobotoFontBase64();
+    const logoDataUrl = await getLogoDataUrl();
+    const reportDate = formatDateTime(new Date());
+    const sortedLogs = [...logs].sort(
+      (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+    );
+
+    const doc = new JsPdf({ unit: "pt", format: "a4" });
+    doc.addFileToVFS("Roboto.ttf", fontBase64);
+    doc.addFont("Roboto.ttf", "Roboto", "normal");
+    doc.setFont("Roboto", "normal");
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const getLastTableY = () =>
+      (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 0;
+
+    doc.setFillColor(245, 246, 248);
+    doc.rect(20, 20, pageWidth - 40, 124, "F");
+
+    doc.addImage(logoDataUrl, "PNG", 30, 32, 88, 44);
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(13);
+    doc.text("MANEX spol. s r.o.", 124, 46);
+    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(9.5);
+    doc.text("Krátka 21, 044 14 Čaňa, Slovenská republika", 124, 61);
+    doc.text("tel.: +421 (55) 699 86 22", 124, 74);
+    doc.text("E-mail: manex@manex.sk", 124, 87);
+    doc.text("Web: www.manex.sk", 124, 100);
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(19);
+    doc.text(config.pdfTitle, pageWidth - 34, 48, { align: "right" });
+
+    doc.setTextColor(71, 85, 105);
+    doc.setFontSize(10);
+    doc.text(`Číslo zákazky: ${projectNumber}`, pageWidth - 34, 66, { align: "right" });
+    const nameLines = (doc.splitTextToSize(`Názov zákazky: ${projectName}`, 230) as string[]).slice(0, 2);
+    doc.text(nameLines, pageWidth - 34, 80, { align: "right" });
+    doc.text(`Dátum a čas generovania: ${reportDate}`, pageWidth - 34, 122, { align: "right" });
+
+    doc.setDrawColor(220, 38, 38);
+    doc.setLineWidth(2);
+    doc.line(20, 152, pageWidth - 20, 152);
+
+    doc.setDrawColor(71, 85, 105);
+    doc.setLineWidth(1);
+    doc.line(20, 158, pageWidth - 20, 158);
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(12);
+    doc.text(mode === "paper" ? "Súhrn protokolu (verzia na podpis)" : "Súhrn reportu", 24, 182);
+
+    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(10);
+    let summaryY = 200;
+    doc.text(`Počet záznamov: ${logs.length}`, 24, summaryY);
+    doc.text(
+      `Odpracovaný čas: ${formatDuration(workTime.workedMinutes)} (${formatHoursDecimal(workTime.workedMinutes)} h)`,
+      180,
+      summaryY,
+    );
+    if (persons.length > 0) {
+      const personLines = doc.splitTextToSize(
+        `${personsLabel}: ${persons.map((person) => person.name).join(", ")}`,
+        pageWidth - 48,
+      ) as string[];
+      summaryY += 14;
+      doc.text(personLines, 24, summaryY);
+      summaryY += (personLines.length - 1) * 12;
+    }
+    if (workTime.loggedMinutes > workTime.workedMinutes) {
+      summaryY += 14;
+      doc.setFontSize(8.5);
+      doc.text(
+        `Súčet všetkých záznamov je ${formatDuration(workTime.loggedMinutes)}; časy, ktoré sa v rámci dňa prekrývajú, sú započítané iba raz.`,
+        24,
+        summaryY,
+        { maxWidth: pageWidth - 48 },
+      );
+      doc.setFontSize(10);
+    }
+    if (mode === "report") {
+      summaryY += 14;
+      doc.text(
+        completedAt
+          ? `Stav zákazky: ukončená dňa ${formatDateTime(completedAt)}${completionMethod ? ` (${COMPLETION_METHOD_LABELS[completionMethod]})` : ""}`
+          : "Stav zákazky: aktívna",
+        24,
+        summaryY,
+      );
+    }
+
+    const tableStyles = {
+      styles: {
+        font: "Roboto",
+        fontStyle: "normal" as const,
+        fontSize: 9,
+        textColor: [31, 41, 55] as [number, number, number],
+        cellPadding: 6,
+        lineColor: [203, 213, 225] as [number, number, number],
+        lineWidth: 0.7,
+      },
+      headStyles: {
+        fillColor: [31, 41, 55] as [number, number, number],
+        textColor: [255, 255, 255] as [number, number, number],
+        font: "Roboto",
+        fontStyle: "normal" as const,
+      },
+      footStyles: {
+        fillColor: [241, 245, 249] as [number, number, number],
+        textColor: [15, 23, 42] as [number, number, number],
+        font: "Roboto",
+        fontStyle: "normal" as const,
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251] as [number, number, number],
+      },
+      margin: { left: 24, right: 24, bottom: 170 },
+    };
+
+    autoTable(doc, {
+      ...tableStyles,
+      startY: summaryY + 14,
+      head: [["Dátum", "Pracovník", "Od - Do", "Trvanie", "Popis práce"]],
+      body: sortedLogs.map((log) => [
+        formatDate(log.date),
+        log.authorName,
+        `${formatTime(log.startTime)} - ${formatTime(log.endTime)}`,
+        formatDuration(log.durationInMinutes),
+        log.description,
+      ]),
+      columnStyles: {
+        0: { cellWidth: 70 },
+        1: { cellWidth: 100 },
+        2: { cellWidth: 90 },
+        3: { cellWidth: 70 },
+      },
+    });
+
+    if (workTime.days.length > 0) {
+      autoTable(doc, {
+        ...tableStyles,
+        startY: getLastTableY() + 18,
+        head: [["Dátum", "Odpracovaný čas za deň", "Súčet záznamov"]],
+        body: workTime.days.map((day) => [
+          formatDayKey(day.dayKey),
+          formatDuration(day.workedMinutes),
+          formatDuration(day.loggedMinutes),
+        ]),
+        foot: [
+          [
+            "Spolu",
+            `${formatDuration(workTime.workedMinutes)} (${formatHoursDecimal(workTime.workedMinutes)} h)`,
+            formatDuration(workTime.loggedMinutes),
+          ],
+        ],
+        showFoot: "lastPage",
+        tableWidth: 360,
+      });
+    }
+
+    const signatureTop = pageHeight - 150;
+    const signatureBlockWidth = (pageWidth - 60) / 2;
+    const blocks = [
+      { title: "Podpis zamestnanca", x: 24, signature: employeeSignatureValue, signedAt: employeeSignedAtValue },
+      { title: "Podpis zákazníka", x: 36 + signatureBlockWidth, signature: customerSignatureValue, signedAt: customerSignedAtValue },
+    ];
+
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(1);
+    for (const block of blocks) {
+      doc.rect(block.x, signatureTop, signatureBlockWidth, 108);
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(10);
+      doc.text(block.title, block.x + 10, signatureTop + 16);
+
+      if (mode === "paper") {
+        doc.setTextColor(71, 85, 105);
+        doc.setFontSize(9);
+        const lines = [
+          { label: "Meno a priezvisko:", y: signatureTop + 42 },
+          { label: "Dátum:", y: signatureTop + 66 },
+          { label: "Podpis:", y: signatureTop + 94 },
+        ];
+        for (const line of lines) {
+          doc.text(line.label, block.x + 10, line.y);
+          doc.setDrawColor(148, 163, 184);
+          doc.line(block.x + 98, line.y + 2, block.x + signatureBlockWidth - 12, line.y + 2);
+        }
+        continue;
+      }
+
+      if (block.signature?.startsWith("data:image")) {
+        doc.addImage(block.signature, "PNG", block.x + 10, signatureTop + 24, signatureBlockWidth - 22, 44);
+      } else {
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(9);
+        doc.text(
+          completionMethod === "PAPER_PROTOCOL" ? "Podpísané na papierovom protokole" : "Nepodpísané",
+          block.x + 10,
+          signatureTop + 46,
+        );
+      }
+
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(8.7);
+      const signedAtText = block.signedAt
+        ? formatSignedAtFull(block.signedAt)
+        : completionMethod === "PAPER_PROTOCOL" && signedProtocol
+          ? `Protokol nahratý dňa: ${formatDateTime(signedProtocol.uploadedAt)}`
+          : "Podpísané dňa: -";
+      doc.text(signedAtText, block.x + 10, signatureTop + 92, { maxWidth: signatureBlockWidth - 16 });
+    }
+
+    const totalPages = doc.getNumberOfPages();
+    for (let page = 1; page <= totalPages; page += 1) {
+      doc.setPage(page);
+      doc.setFont("Roboto", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Strana ${page}/${totalPages}`, pageWidth - 24, pageHeight - 12, {
+        align: "right",
+      });
+    }
+
+    return { doc, fileName: `${config.fileSlug}-${pdfFileNamePart(projectNumber)}${mode === "paper" ? "-na-podpis" : ""}.pdf` };
   }
 
   async function handleCompleteWithoutSignature() {
@@ -944,6 +1008,134 @@ export function ProjectDetailClient({
     }
   }
 
+  async function handleAddPerson(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPersonError(null);
+
+    const name = personInput.replace(/\s+/g, " ").trim();
+    if (!name) {
+      setPersonError("Vyberte osobu zo zoznamu alebo dopíšte meno.");
+      return;
+    }
+
+    try {
+      setAddingPerson(true);
+      const response = await fetch(`/api/projects/${projectId}/persons`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, addToList: personAddToList && personInputIsNew }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { message?: string };
+        throw new Error(payload.message ?? "Osobu sa nepodarilo pridať.");
+      }
+
+      setPersonInput("");
+      setPersonAddToList(false);
+      router.refresh();
+    } catch (e) {
+      setPersonError(getUserFacingError(e, "Osobu sa nepodarilo pridať."));
+    } finally {
+      setAddingPerson(false);
+    }
+  }
+
+  async function handleRemovePerson(person: ProjectPersonRow) {
+    setPersonError(null);
+
+    try {
+      setRemovingPersonId(person.id);
+      const response = await fetch(`/api/projects/${projectId}/persons/${person.id}`, { method: "DELETE" });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { message?: string };
+        throw new Error(payload.message ?? "Osobu sa nepodarilo odobrať.");
+      }
+
+      router.refresh();
+    } catch (e) {
+      setPersonError(getUserFacingError(e, "Osobu sa nepodarilo odobrať."));
+    } finally {
+      setRemovingPersonId(null);
+    }
+  }
+
+  function openEmailDialog() {
+    const fileProbe = new File([new Uint8Array(1)], "probe.pdf", { type: "application/pdf" });
+    setCanShareFiles(typeof navigator.canShare === "function" && navigator.canShare({ files: [fileProbe] }));
+    setIsTouchDevice(window.matchMedia("(pointer: coarse)").matches);
+    setEmailSubject(`${config.pdfTitle.charAt(0)}${config.pdfTitle.slice(1).toLocaleLowerCase("sk")} – ${projectNumber} - ${projectName}`);
+    setEmailBody(
+      `Dobrý deň,\n\nv prílohe posielame ${diaryType === "SERVICE" ? "servisný" : "montážny"} protokol k zákazke ${projectNumber} - ${projectName}.\n\nS pozdravom\nMANEX spol. s r.o.`,
+    );
+    setEmailError(null);
+    setEmailInfo(null);
+    setEmailOpen(true);
+  }
+
+  async function createReportFile(): Promise<File> {
+    const { doc, fileName } = await createPdf("report");
+    const blob = doc.output("blob");
+    return new File([blob], fileName, { type: "application/pdf" });
+  }
+
+  async function handleShareEmail() {
+    setEmailError(null);
+    setEmailInfo(null);
+
+    try {
+      setEmailBusy(true);
+      const file = await createReportFile();
+      await navigator.share({ files: [file], title: emailSubject, text: emailBody });
+      setEmailOpen(false);
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        return;
+      }
+      setEmailError(getUserFacingError(e, "Zdieľanie sa nepodarilo. Skúste stiahnuť koncept e-mailu."));
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function handleDownloadEmailDraft() {
+    setEmailError(null);
+    setEmailInfo(null);
+
+    try {
+      setEmailBusy(true);
+      const file = await createReportFile();
+      const eml = buildEmailDraft({
+        to: emailTo,
+        subject: emailSubject,
+        body: emailBody,
+        attachment: {
+          fileName: file.name,
+          mimeType: "application/pdf",
+          bytes: new Uint8Array(await file.arrayBuffer()),
+        },
+      });
+
+      const url = URL.createObjectURL(new Blob([eml], { type: "message/rfc822" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = file.name.replace(/\.pdf$/, ".eml");
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+
+      setEmailInfo(
+        "Koncept e-mailu sa stiahol. Otvorte stiahnutý súbor – v Outlooku sa otvorí ako nový e-mail s PDF v prílohe, ktorý stačí odoslať.",
+      );
+    } catch (e) {
+      setEmailError(getUserFacingError(e, "Koncept e-mailu sa nepodarilo vytvoriť."));
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
   async function handleUnlockProject() {
     setUnlockError(null);
 
@@ -983,6 +1175,7 @@ export function ProjectDetailClient({
     const metadataHeader = `MANEX spol. s r.o. - ${config.diaryName} pre zákazku: ${projectNumber} - ${projectName}`;
     const metadataContact = "MANEX spol. s r.o. | Krátka 21, 044 14 Čaňa | tel.: +421 (55) 699 86 22 | manex@manex.sk | www.manex.sk";
     const metadataGeneratedAt = `Dátum a čas generovania: ${formatDateTime(new Date())}`;
+    const metadataPersons = `${personsLabel}: ${persons.map((person) => person.name).join(", ") || "-"}`;
     const header = ["Dátum", "Od", "Do", "Trvanie", "Popis práce", "Pracovník"];
 
     const rows = logs.map((log) => [
@@ -1006,7 +1199,7 @@ export function ProjectDetailClient({
       ["Spolu", `${formatDuration(workTime.workedMinutes)} (${formatHoursDecimal(workTime.workedMinutes)} h)`, formatDuration(workTime.loggedMinutes)],
     ];
 
-    const csvContent = [[metadataHeader], [metadataContact], [metadataGeneratedAt], [], header, ...rows, ...summaryRows]
+    const csvContent = [[metadataHeader], [metadataContact], [metadataGeneratedAt], [metadataPersons], [], header, ...rows, ...summaryRows]
       .map((row) => row.map((cell) => csvEscape(cell)).join(";"))
       .join("\n");
 
@@ -1072,6 +1265,14 @@ export function ProjectDetailClient({
         </button>
         <button
           type="button"
+          onClick={openEmailDialog}
+          className="inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+        >
+          <Mail size={16} />
+          Odoslať e-mailom
+        </button>
+        <button
+          type="button"
           onClick={() => window.print()}
           className="inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-900"
         >
@@ -1122,6 +1323,86 @@ export function ProjectDetailClient({
                 Odomknúť zákazku (zmazať podpisy a protokol)
               </button>
             </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {persons.length > 0 || canEditPersons ? (
+        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm print:border-0 print:p-0 print:shadow-none">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+            <Users size={18} className="text-red-600 print:hidden" />
+            {personsLabel}
+          </h2>
+
+          {persons.length > 0 ? (
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {persons.map((person) => (
+                <li
+                  key={person.id}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-50 py-1 pl-3 pr-2 text-sm text-slate-800 print:border-0 print:bg-white print:p-0 print:after:content-[','] last:print:after:content-['']"
+                >
+                  {person.name}
+                  {canEditPersons ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleRemovePerson(person)}
+                      disabled={removingPersonId === person.id}
+                      aria-label={`Odobrať ${person.name}`}
+                      title="Odobrať zo zákazky"
+                      className="rounded-full p-0.5 text-slate-500 hover:bg-red-100 hover:text-red-700 disabled:opacity-50 print:hidden"
+                    >
+                      <X size={14} />
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-gray-500">Zatiaľ nie sú pridané žiadne osoby.</p>
+          )}
+
+          {canEditPersons ? (
+            <form onSubmit={handleAddPerson} className="mt-3 space-y-2 print:hidden">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={personInput}
+                  onChange={(event) => {
+                    setPersonInput(event.target.value);
+                    setPersonError(null);
+                  }}
+                  list={`person-list-${projectId}`}
+                  placeholder="Vyberte zo zoznamu alebo dopíšte meno"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-red-500 focus:ring sm:max-w-md"
+                />
+                <datalist id={`person-list-${projectId}`}>
+                  {availablePersonNames.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+                <button
+                  type="submit"
+                  disabled={addingPerson}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  <PlusCircle size={16} />
+                  {addingPerson ? "Pridávam..." : "Pridať osobu"}
+                </button>
+              </div>
+
+              {canManagePersons && personInputIsNew ? (
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={personAddToList}
+                    onChange={(event) => setPersonAddToList(event.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 accent-red-600"
+                  />
+                  Uložiť „{personInput.trim()}“ aj do zoznamu osôb
+                </label>
+              ) : null}
+
+              {personError ? <p className="text-sm text-red-700">{personError}</p> : null}
+            </form>
           ) : null}
         </section>
       ) : null}
@@ -1498,6 +1779,96 @@ export function ProjectDetailClient({
           </div>
         ) : null}
       </section>
+
+      {emailOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 print:hidden">
+          <div className="max-h-full w-full max-w-lg overflow-y-auto rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+              <Mail size={18} className="text-red-600" />
+              Odoslať protokol e-mailom
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              K e-mailu sa priloží aktuálny PDF report zákazky {projectNumber}.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              {!(isTouchDevice && canShareFiles) ? (
+                <label className="block text-sm font-medium text-gray-700">
+                  Komu (nepovinné)
+                  <input
+                    type="email"
+                    value={emailTo}
+                    onChange={(event) => setEmailTo(event.target.value)}
+                    placeholder="napr. zakaznik@firma.sk"
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-red-500 focus:ring"
+                  />
+                </label>
+              ) : null}
+
+              <label className="block text-sm font-medium text-gray-700">
+                Predmet
+                <input
+                  value={emailSubject}
+                  onChange={(event) => setEmailSubject(event.target.value)}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-red-500 focus:ring"
+                />
+              </label>
+
+              <label className="block text-sm font-medium text-gray-700">
+                Text správy
+                <textarea
+                  value={emailBody}
+                  onChange={(event) => setEmailBody(event.target.value)}
+                  rows={5}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-red-500 focus:ring"
+                />
+              </label>
+            </div>
+
+            <p className="mt-3 text-xs text-gray-500">
+              {isTouchDevice && canShareFiles
+                ? "Otvorí sa ponuka Zdieľať – vyberte svoju mailovú aplikáciu, PDF bude v prílohe."
+                : "Stiahne sa koncept e-mailu (.eml) s PDF v prílohe. Po otvorení sa zobrazí v Outlooku ako nový e-mail pripravený na odoslanie."}
+            </p>
+
+            {emailInfo ? <p className="mt-3 rounded-md bg-emerald-50 p-2 text-sm text-emerald-900">{emailInfo}</p> : null}
+            {emailError ? <p className="mt-3 text-sm text-red-700">{emailError}</p> : null}
+
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEmailOpen(false)}
+                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Zavrieť
+              </button>
+              {canShareFiles && !isTouchDevice ? (
+                <button
+                  type="button"
+                  onClick={() => void handleShareEmail()}
+                  disabled={emailBusy}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                >
+                  Zdieľať…
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void (isTouchDevice && canShareFiles ? handleShareEmail() : handleDownloadEmailDraft())}
+                disabled={emailBusy}
+                className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                <Mail size={16} />
+                {emailBusy
+                  ? "Pripravujem..."
+                  : isTouchDevice && canShareFiles
+                    ? "Otvoriť v mailovej aplikácii"
+                    : "Vytvoriť e-mail s prílohou"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {completeModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 print:hidden">
