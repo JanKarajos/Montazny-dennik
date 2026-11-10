@@ -7,6 +7,7 @@ const updateUserSchema = z.object({
   name: z.string().min(2, "Meno je povinné."),
   email: z.string().email("Neplatný email."),
   permissionCodes: z.array(z.string()).default([]),
+  roleId: z.string().min(1).optional(),
 });
 
 type RouteContext = {
@@ -44,11 +45,39 @@ export async function PATCH(request: Request, context: RouteContext) {
       select: { id: true, code: true },
     });
 
+    const currentUser = await prisma.user.findUnique({ where: { id }, select: { roleId: true } });
+    if (!currentUser) {
+      return NextResponse.json({ message: "Používateľ neexistuje." }, { status: 404 });
+    }
+
+    const roleId = parsed.data.roleId ?? currentUser.roleId;
+    const role = await prisma.role.findUnique({
+      where: { id: roleId },
+      select: { id: true, permissions: { select: { code: true } } },
+    });
+    if (!role) {
+      return NextResponse.json({ message: "Zvolená rola neexistuje." }, { status: 400 });
+    }
+
+    // Správca si nesmie úpravou vlastného účtu odobrať správu používateľov.
+    if (id === permissionContext.userId) {
+      const keepsManageUsers =
+        role.permissions.some((permission) => permission.code === "MANAGE_USERS") ||
+        permissions.some((permission) => permission.code === "MANAGE_USERS");
+      if (!keepsManageUsers) {
+        return NextResponse.json(
+          { message: "Vlastnému účtu nemôžete odobrať oprávnenie na správu používateľov a rolí." },
+          { status: 400 },
+        );
+      }
+    }
+
     const updated = await prisma.user.update({
       where: { id },
       data: {
         name: parsed.data.name.trim(),
         email: normalizedEmail,
+        roleId: role.id,
         permissions: {
           set: permissions.map((permission) => ({ id: permission.id })),
         },

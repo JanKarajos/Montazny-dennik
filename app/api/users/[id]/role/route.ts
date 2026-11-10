@@ -26,9 +26,29 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ message: "Neplatná rola." }, { status: 400 });
     }
 
-    const roleExists = await prisma.role.findUnique({ where: { id: parsed.data.roleId }, select: { id: true } });
+    const roleExists = await prisma.role.findUnique({
+      where: { id: parsed.data.roleId },
+      select: { id: true, permissions: { select: { code: true } } },
+    });
     if (!roleExists) {
       return NextResponse.json({ message: "Zvolená rola neexistuje." }, { status: 400 });
+    }
+
+    // Správca si nesmie zmenou vlastnej roly odobrať správu používateľov.
+    if (id === permissionContext.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id },
+        select: { permissions: { select: { code: true } } },
+      });
+      const keepsManageUsers = [...roleExists.permissions, ...(user?.permissions ?? [])].some(
+        (permission) => permission.code === "MANAGE_USERS",
+      );
+      if (!keepsManageUsers) {
+        return NextResponse.json(
+          { message: "Vlastnému účtu nemôžete odobrať oprávnenie na správu používateľov a rolí." },
+          { status: 400 },
+        );
+      }
     }
 
     const updated = await prisma.user.update({
