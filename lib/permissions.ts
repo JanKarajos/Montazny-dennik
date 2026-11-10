@@ -8,6 +8,7 @@ export const CORE_PERMISSION_CODES = [
   "MANAGE_USERS",
   "RESET_USER_PASSWORDS",
   "UNLOCK_PROJECT",
+  "MANAGE_PERSONS",
 ] as const;
 
 export type PermissionCode = (typeof CORE_PERMISSION_CODES)[number];
@@ -27,6 +28,7 @@ export const CORE_PERMISSIONS: PermissionItem[] = [
   { code: "MANAGE_USERS", description: "Správa používateľov a rolí" },
   { code: "RESET_USER_PASSWORDS", description: "Zmena hesiel používateľov adminom" },
   { code: "UNLOCK_PROJECT", description: "Odomknutie zákaziek a mazanie podpisov" },
+  { code: "MANAGE_PERSONS", description: "Správa zoznamu osôb na montáž a servis" },
 ];
 
 export function isPermissionCode(value: string): value is PermissionCode {
