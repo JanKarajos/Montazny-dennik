@@ -17,6 +17,17 @@ type ProjectItem = {
 
 type StatusFilter = "active" | "completed";
 
+function formatCreatedAt(dateInput: string): string {
+  return new Intl.DateTimeFormat("sk-SK", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Europe/Bratislava",
+  })
+    .format(new Date(dateInput))
+    .replace(/\s/g, "");
+}
+
 type Props = {
   diaryType: DiaryTypeCode;
   projects: ProjectItem[];
@@ -205,6 +216,9 @@ export function DashboardClient({ diaryType, projects, canCreateProject, canDele
               >
                 {project.isCompleted ? "Ukončená" : "Aktívna"}
               </span>
+              {diaryType === "SERVICE" ? (
+                <p className="mt-2 text-xs text-gray-500">Vytvorená {formatCreatedAt(project.createdAt)}</p>
+              ) : null}
             </Link>
 
             {canDeleteProject ? (

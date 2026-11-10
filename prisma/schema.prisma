@@ -70,7 +70,11 @@ model Project {
   persons           ProjectPerson[]
   workLogs          WorkLog[]
 
-  @@unique([type, projectNumber])
+  // Číslo montážnej zákazky je unikátne cez čiastočný index
+  // "Project_assembly_projectNumber_key" (WHERE type = 'ASSEMBLY') v migrácii
+  // 20261111090000_service_number_not_unique – Prisma čiastočné indexy nevie popísať.
+  // Číslo servisnej zákazky sa môže opakovať.
+  @@index([type, projectNumber])
   @@index([type, createdAt])
 }
 
