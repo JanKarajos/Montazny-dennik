@@ -250,8 +250,8 @@ export function DashboardClient({ diaryType, projects, canCreateProject, canDele
       ) : null}
 
       {openModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 print:hidden">
-          <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/60 p-4 print:hidden">
+          <div className="my-auto w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-slate-900">
               {diaryType === "SERVICE" ? "Nová servisná zákazka" : "Nová zákazka"}
             </h2>
@@ -302,8 +302,8 @@ export function DashboardClient({ diaryType, projects, canCreateProject, canDele
       ) : null}
 
       {deleteProject ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 print:hidden">
-          <div className="w-full max-w-md rounded-xl border border-red-300 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/70 p-4 print:hidden">
+          <div className="my-auto w-full max-w-md rounded-xl border border-red-300 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-red-800">Vymazať zákazku</h2>
             <p className="mt-2 text-sm text-gray-700">
               Pre potvrdenie zadajte číslo zákazky <strong>{deleteProject.projectNumber}</strong>.

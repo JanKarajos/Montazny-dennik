@@ -1256,7 +1256,7 @@ export function ProjectDetailClient({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-red-700">{config.itemLabel}</p>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="break-words text-xl font-bold text-slate-900 sm:text-2xl">
             {projectNumber} - {projectName}
           </h1>
         </div>
@@ -1278,14 +1278,15 @@ export function ProjectDetailClient({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-2 print:hidden">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap print:hidden [&>button]:justify-center">
         <button
           type="button"
           onClick={handleExportCsv}
           className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-200"
         >
           <Download size={16} />
-          Exportovať do Excelu (CSV)
+          <span className="sm:hidden">Excel (CSV)</span>
+          <span className="hidden sm:inline">Exportovať do Excelu (CSV)</span>
         </button>
         <button
           type="button"
@@ -1567,7 +1568,58 @@ export function ProjectDetailClient({
           </p>
         </div>
 
-        <div className="overflow-x-auto">
+        <ul className="divide-y divide-gray-200 md:hidden print:hidden">
+          {logs.map((log) => {
+            const canManageThisLog = !isLocked && canManageLog(log, currentUserId, canManageAllLogs);
+
+            return (
+              <li key={log.id} className="px-3 py-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {formatDate(log.date)}
+                    <span className="ml-2 font-normal text-gray-600">
+                      {formatTime(log.startTime)} – {formatTime(log.endTime)}
+                    </span>
+                  </p>
+                  <p className="text-sm font-semibold text-red-700">{formatDuration(log.durationInMinutes)}</p>
+                </div>
+                <p className="mt-1 whitespace-pre-line break-words text-sm text-gray-800">{log.description}</p>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-gray-500">{log.authorName}</p>
+                  {canManageThisLog ? (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openLogEdit(log)}
+                        className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                      >
+                        <Pencil size={13} />
+                        Upraviť
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeletingLog(log);
+                          setLogDeleteError(null);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 size={13} />
+                        Vymazať
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+
+          {logs.length === 0 ? (
+            <li className="px-3 py-6 text-center text-sm text-gray-500">Zatiaľ nie sú pridané žiadne záznamy.</li>
+          ) : null}
+        </ul>
+
+        <div className="hidden overflow-x-auto md:block print:block">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-100 text-left text-gray-700">
               <tr>
@@ -1858,8 +1910,8 @@ export function ProjectDetailClient({
       </section>
 
       {emailOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 print:hidden">
-          <div className="max-h-full w-full max-w-lg overflow-y-auto rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/60 p-4 print:hidden">
+          <div className="my-auto max-h-full w-full max-w-lg overflow-y-auto rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
               <Mail size={18} className="text-red-600" />
               Odoslať protokol e-mailom
@@ -1948,8 +2000,8 @@ export function ProjectDetailClient({
       ) : null}
 
       {completeModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 print:hidden">
-          <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/70 p-4 print:hidden">
+          <div className="my-auto w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-slate-900">Ukončiť zákazku bez podpisu</h2>
             <p className="mt-2 text-sm text-gray-700">
               Naozaj chcete ukončiť zákazku <strong>{projectNumber}</strong> bez podpisu? Zákazka sa uzamkne a ďalšie
@@ -1982,8 +2034,8 @@ export function ProjectDetailClient({
       ) : null}
 
       {signatureModalParty ? (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 print:hidden">
-          <div className="w-full max-w-lg rounded-xl bg-white p-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/50 flex justify-center overflow-y-auto z-50 p-4 print:hidden">
+          <div className="my-auto w-full max-w-lg rounded-xl bg-white p-4 shadow-2xl">
             <h3 className="text-lg font-bold text-slate-900">
               {signatureModalParty === "employee" ? "Podpis zamestnanca" : "Podpis zákazníka"}
             </h3>
@@ -2030,8 +2082,8 @@ export function ProjectDetailClient({
       ) : null}
 
       {unlockModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 print:hidden">
-          <div className="w-full max-w-md rounded-xl border border-amber-300 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/70 p-4 print:hidden">
+          <div className="my-auto w-full max-w-md rounded-xl border border-amber-300 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-amber-900">Odomknutie zákazky</h2>
             <p className="mt-2 text-sm text-gray-700">
               Naozaj chcete zákazku znovu otvoriť? Zmažú sa podpisy zamestnanca aj zákazníka, nahratý podpísaný
@@ -2064,8 +2116,8 @@ export function ProjectDetailClient({
       ) : null}
 
       {editOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 print:hidden">
-          <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/60 p-4 print:hidden">
+          <div className="my-auto w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-slate-900">Upraviť zákazku</h2>
             <p className="mt-1 text-sm text-gray-600">Zmeňte číslo alebo názov zákazky.</p>
 
@@ -2114,8 +2166,8 @@ export function ProjectDetailClient({
       ) : null}
 
       {deleteOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 print:hidden">
-          <div className="w-full max-w-md rounded-xl border border-red-300 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/70 p-4 print:hidden">
+          <div className="my-auto w-full max-w-md rounded-xl border border-red-300 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-red-800">Vymazať zákazku</h2>
             <p className="mt-2 text-sm text-gray-700">
               Pre potvrdenie zadajte číslo zákazky <strong>{projectNumber}</strong>.
@@ -2156,8 +2208,8 @@ export function ProjectDetailClient({
       ) : null}
 
       {editingLog ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 print:hidden">
-          <div className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/60 p-4 print:hidden">
+          <div className="my-auto w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-slate-900">Upraviť záznam práce</h2>
             <p className="mt-1 text-sm text-gray-600">Zmeňte údaje záznamu práce.</p>
 
@@ -2230,8 +2282,8 @@ export function ProjectDetailClient({
       ) : null}
 
       {deletingLog ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 print:hidden">
-          <div className="w-full max-w-md rounded-xl border border-red-300 bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-slate-900/70 p-4 print:hidden">
+          <div className="my-auto w-full max-w-md rounded-xl border border-red-300 bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-bold text-red-800">Vymazať záznam práce</h2>
             <p className="mt-2 text-sm text-gray-700">
               Naozaj chcete vymazať záznam zo dňa <strong>{formatDate(deletingLog.date)}</strong>?
