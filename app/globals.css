@@ -28,6 +28,33 @@ h4 {
   font-family: var(--font-heading), sans-serif;
 }
 
+/* Polia dátumu a času nesmú byť širšie ako ich kontajner. */
+input[type="date"],
+input[type="time"] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/*
+ * iOS Safari dáva poliam dátumu a času vlastnú minimálnu šírku a ignoruje
+ * width: 100 %, takže presahujú formulár. Podmienka platí iba pre iOS.
+ */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"],
+  input[type="time"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    width: 100%;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value {
+    min-height: 1.25rem;
+    text-align: left;
+  }
+}
+
 @media print {
   body {
     background: white;
