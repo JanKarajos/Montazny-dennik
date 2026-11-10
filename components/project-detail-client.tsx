@@ -780,7 +780,7 @@ export function ProjectDetailClient({
       180,
       summaryY,
     );
-    if (persons.length > 0) {
+    if (mode === "report" && persons.length > 0) {
       const personLines = doc.splitTextToSize(
         `${personsLabel}: ${persons.map((person) => person.name).join(", ")}`,
         pageWidth - 48,
@@ -877,6 +877,32 @@ export function ProjectDetailClient({
         ],
         showFoot: "lastPage",
         tableWidth: 360,
+      });
+    }
+
+    // Verzia na podpis: osoby na montáži / servise s miestom na podpis a voľnými
+    // riadkami pre osoby dopísané rukou.
+    if (mode === "paper") {
+      const contentBottom = pageHeight - 170;
+      let personsTitleY = getLastTableY() + 30;
+      if (personsTitleY > contentBottom - 70) {
+        doc.addPage();
+        personsTitleY = 50;
+      }
+
+      doc.setFont("Roboto", "normal");
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(12);
+      doc.text(personsLabel, 24, personsTitleY);
+
+      autoTable(doc, {
+        ...tableStyles,
+        startY: personsTitleY + 8,
+        head: [["Meno a priezvisko", "Podpis"]],
+        body: [...persons.map((person) => [person.name, ""]), ["", ""], ["", ""]],
+        bodyStyles: { minCellHeight: 26, valign: "middle" },
+        alternateRowStyles: { fillColor: [255, 255, 255] },
+        columnStyles: { 0: { cellWidth: 220 } },
       });
     }
 
