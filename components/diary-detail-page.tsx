@@ -12,6 +12,22 @@ export async function DiaryDetailPage({ id, type }: { id: string; type: DiaryTyp
     include: {
       completedBy: { select: { name: true } },
       persons: { orderBy: { name: "asc" }, select: { id: true, name: true } },
+      issues: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          resolution: true,
+          status: true,
+          createdById: true,
+          createdAt: true,
+          resolvedAt: true,
+          createdBy: { select: { name: true } },
+          resolvedBy: { select: { name: true } },
+          photos: { orderBy: { createdAt: "asc" }, select: { id: true, kind: true, uploadedById: true } },
+        },
+      },
       signedProtocol: {
         select: {
           fileName: true,
@@ -60,6 +76,19 @@ export async function DiaryDetailPage({ id, type }: { id: string; type: DiaryTyp
         canCompleteProject={hasPermission(user, "EDIT_PROJECT")}
         canManagePersons={hasPermission(user, "MANAGE_PERSONS")}
         persons={project.persons}
+        issues={project.issues.map((issue) => ({
+          id: issue.id,
+          title: issue.title,
+          description: issue.description,
+          resolution: issue.resolution,
+          status: issue.status,
+          createdById: issue.createdById,
+          createdByName: issue.createdBy?.name ?? null,
+          createdAt: issue.createdAt.toISOString(),
+          resolvedByName: issue.resolvedBy?.name ?? null,
+          resolvedAt: issue.resolvedAt?.toISOString() ?? null,
+          photos: issue.photos,
+        }))}
         personListNames={personList.map((person) => person.name)}
         completedAt={project.completedAt?.toISOString() ?? null}
         completionMethod={project.completionMethod}

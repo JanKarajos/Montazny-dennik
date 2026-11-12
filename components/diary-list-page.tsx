@@ -16,6 +16,7 @@ export async function DiaryListPage({ type }: { type: DiaryTypeCode }) {
       name: true,
       createdAt: true,
       completedAt: true,
+      _count: { select: { issues: { where: { status: "OPEN" } } } },
     },
   });
 
@@ -37,6 +38,7 @@ export async function DiaryListPage({ type }: { type: DiaryTypeCode }) {
           name: project.name,
           createdAt: project.createdAt.toISOString(),
           isCompleted: project.completedAt !== null,
+          openIssues: project._count.issues,
         }))}
       />
     </section>
