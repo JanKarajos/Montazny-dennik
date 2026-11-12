@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Plus, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,6 +13,7 @@ type ProjectItem = {
   name: string;
   createdAt: string;
   isCompleted: boolean;
+  openIssues: number;
 };
 
 type StatusFilter = "active" | "completed";
@@ -216,6 +217,16 @@ export function DashboardClient({ diaryType, projects, canCreateProject, canDele
               >
                 {project.isCompleted ? "Ukončená" : "Aktívna"}
               </span>
+              {project.openIssues > 0 ? (
+                <span className="ml-2 mt-2 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+                  <AlertTriangle size={12} />
+                  {project.openIssues === 1
+                    ? "1 otvorený problém"
+                    : project.openIssues < 5
+                      ? `${project.openIssues} otvorené problémy`
+                      : `${project.openIssues} otvorených problémov`}
+                </span>
+              ) : null}
               {diaryType === "SERVICE" ? (
                 <p className="mt-2 text-xs text-gray-500">Vytvorená {formatCreatedAt(project.createdAt)}</p>
               ) : null}

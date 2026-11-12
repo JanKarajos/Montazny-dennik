@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { IssueRow, ProjectIssues } from "@/components/project-issues";
 import { getUserFacingError } from "@/lib/client-error";
 import { COMPLETION_METHOD_LABELS, CompletionMethodCode } from "@/lib/completion";
 import { DIARY_CONFIG, DiaryTypeCode } from "@/lib/diary-types";
@@ -71,6 +72,7 @@ type Props = {
   canManagePersons: boolean;
   persons: ProjectPersonRow[];
   personListNames: string[];
+  issues: IssueRow[];
   completedAt: string | null;
   completionMethod: CompletionMethodCode | null;
   completedByName: string | null;
@@ -250,6 +252,7 @@ export function ProjectDetailClient({
   canManagePersons,
   persons,
   personListNames,
+  issues,
   completedAt,
   completionMethod,
   completedByName,
@@ -877,6 +880,50 @@ export function ProjectDetailClient({
         ],
         showFoot: "lastPage",
         tableWidth: 360,
+      });
+    }
+
+    // Report: problémy na zákazke s postupom riešenia (fotky sú v aplikácii).
+    if (mode === "report" && issues.length > 0) {
+      let issuesTitleY = getLastTableY() + 30;
+      if (issuesTitleY > pageHeight - 170 - 70) {
+        doc.addPage();
+        issuesTitleY = 50;
+      }
+
+      doc.setFont("Roboto", "normal");
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(12);
+      doc.text("Problémy na zákazke", 24, issuesTitleY);
+
+      const chronologicalIssues = [...issues].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+      autoTable(doc, {
+        ...tableStyles,
+        startY: issuesTitleY + 8,
+        head: [["Problém", "Stav", "Postup riešenia"]],
+        body: chronologicalIssues.map((issue) => {
+          const problemPhotos = issue.photos.filter((photo) => photo.kind === "PROBLEM").length;
+          const resolutionPhotos = issue.photos.length - problemPhotos;
+          return [
+            [
+              issue.title,
+              issue.description,
+              `Nahlásil: ${issue.createdByName ?? "-"}, ${formatDateTime(issue.createdAt)}`,
+              ...(problemPhotos > 0 ? [`Fotky: ${problemPhotos} (v aplikácii)`] : []),
+            ].join("\n"),
+            issue.status === "RESOLVED"
+              ? `Vyriešený${issue.resolvedAt ? `\n${formatDateTime(issue.resolvedAt)}` : ""}`
+              : "Otvorený",
+            [
+              issue.resolution ?? "-",
+              ...(issue.status === "RESOLVED" && issue.resolvedByName ? [`Vyriešil: ${issue.resolvedByName}`] : []),
+              ...(resolutionPhotos > 0 ? [`Fotky: ${resolutionPhotos} (v aplikácii)`] : []),
+            ].join("\n"),
+          ];
+        }),
+        columnStyles: { 1: { cellWidth: 80 } },
       });
     }
 
@@ -1730,6 +1777,14 @@ export function ProjectDetailClient({
           </div>
         </section>
       ) : null}
+
+      <ProjectIssues
+        projectId={projectId}
+        issues={issues}
+        currentUserId={currentUserId}
+        canAddIssues={canAddLogs}
+        canManageAllIssues={canManageAllLogs}
+      />
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm print:hidden">
         <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">

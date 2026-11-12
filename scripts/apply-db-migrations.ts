@@ -14,6 +14,7 @@ const MANAGED_MIGRATIONS = [
   "20261011090000_project_completion",
   "20261110090000_project_persons",
   "20261111090000_service_number_not_unique",
+  "20261112090000_project_issues",
 ];
 
 function splitSqlStatements(sql: string): string[] {
