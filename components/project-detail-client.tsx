@@ -883,50 +883,6 @@ export function ProjectDetailClient({
       });
     }
 
-    // Report: problémy na zákazke s postupom riešenia (fotky sú v aplikácii).
-    if (mode === "report" && issues.length > 0) {
-      let issuesTitleY = getLastTableY() + 30;
-      if (issuesTitleY > pageHeight - 170 - 70) {
-        doc.addPage();
-        issuesTitleY = 50;
-      }
-
-      doc.setFont("Roboto", "normal");
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(12);
-      doc.text("Problémy na zákazke", 24, issuesTitleY);
-
-      const chronologicalIssues = [...issues].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      );
-      autoTable(doc, {
-        ...tableStyles,
-        startY: issuesTitleY + 8,
-        head: [["Problém", "Stav", "Postup riešenia"]],
-        body: chronologicalIssues.map((issue) => {
-          const problemPhotos = issue.photos.filter((photo) => photo.kind === "PROBLEM").length;
-          const resolutionPhotos = issue.photos.length - problemPhotos;
-          return [
-            [
-              issue.title,
-              issue.description,
-              `Nahlásil: ${issue.createdByName ?? "-"}, ${formatDateTime(issue.createdAt)}`,
-              ...(problemPhotos > 0 ? [`Fotky: ${problemPhotos} (v aplikácii)`] : []),
-            ].join("\n"),
-            issue.status === "RESOLVED"
-              ? `Vyriešený${issue.resolvedAt ? `\n${formatDateTime(issue.resolvedAt)}` : ""}`
-              : "Otvorený",
-            [
-              issue.resolution ?? "-",
-              ...(issue.status === "RESOLVED" && issue.resolvedByName ? [`Vyriešil: ${issue.resolvedByName}`] : []),
-              ...(resolutionPhotos > 0 ? [`Fotky: ${resolutionPhotos} (v aplikácii)`] : []),
-            ].join("\n"),
-          ];
-        }),
-        columnStyles: { 1: { cellWidth: 80 } },
-      });
-    }
-
     // Verzia na podpis: osoby na montáži / servise s miestom na podpis a voľnými
     // riadkami pre osoby dopísané rukou.
     if (mode === "paper") {

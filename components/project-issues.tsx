@@ -340,8 +340,9 @@ export function ProjectIssues({ projectId, issues, currentUserId, canAddIssues, 
     );
   }
 
+  // Problémy sú iba na interné účely – nie sú v PDF ani pri tlači denníka.
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm print:border-0 print:p-0 print:shadow-none">
+    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm print:hidden">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
           <AlertTriangle size={18} className="text-red-600 print:hidden" />
